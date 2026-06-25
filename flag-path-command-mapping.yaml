@@ -1,0 +1,659 @@
+# Copyright 2026 Thomson Reuters
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Flag-Path-Command Mapping
+#
+# This file maps CLI flags to their corresponding configuration paths
+# and shows which commands use each flag group.
+#
+# Based on analysis of:
+# - pkg/config/paths.go (CURRENT PROJECT - configuration path constants)
+# - pkg/config/registry.go (CURRENT PROJECT - flag group definitions)
+# - cmd/stamp/*.go (CLI command implementations)
+
+metadata:
+  generated_date: 2025-09-29
+  source_analysis:
+    - pkg/config/paths.go (CURRENT PROJECT)
+    - pkg/config/registry.go (CURRENT PROJECT)
+    - cmd/stamp/ (CLI command implementations)
+
+# Global flags - available to ALL commands
+global_flags:
+  config:
+    flag: --config, -c
+    config_path: NO_CONFIG  # Bootstrap only, cannot be set via config
+    type: string
+    default: ""
+    used_by: ALL_COMMANDS
+    persistent: true
+
+  log-level:
+    flag: --log-level
+    config_path: log.level
+    type: string
+    default: "info"
+    valid_values: [debug, info, warn, error]
+    used_by: ALL_COMMANDS
+    persistent: true
+
+  log-format:
+    flag: --log-format
+    config_path: log.format
+    type: string
+    default: "console"
+    valid_values: [console, json]
+    used_by: ALL_COMMANDS
+    persistent: true
+
+  log-file:
+    flag: --log-file
+    config_path: log.file
+    type: string
+    default: ""
+    used_by: ALL_COMMANDS
+    persistent: true
+
+  verbose:
+    flag: --verbose, -v
+    config_path: settings.verbose
+    type: boolean
+    default: false
+    used_by: ALL_COMMANDS
+    persistent: true
+
+  quiet:
+    flag: --quiet, -q
+    config_path: settings.quiet
+    type: boolean
+    default: false
+    used_by: ALL_COMMANDS
+    persistent: true
+
+  debug:
+    flag: --debug
+    config_path: settings.debug
+    type: boolean
+    default: false
+    used_by: ALL_COMMANDS
+    persistent: true
+
+  no-color:
+    flag: --no-color
+    config_path: settings.no_color
+    type: boolean
+    default: false
+    used_by: ALL_COMMANDS
+    persistent: true
+
+# Security flags
+security_flags:
+  insecure:
+    flag: --insecure
+    config_path: settings.insecure
+    type: boolean
+    default: false
+    used_by: [fetch, verify, upload]
+    description: "Allow insecure connections (skip TLS verification)"
+    persistent: true
+
+# Execution flags
+execution_flags:
+  max-retries:
+    flag: --max-retries
+    config_path: settings.max_retries
+    type: integer
+    default: 0
+    min_value: 0
+    used_by: ALL_COMMANDS
+    persistent: true
+
+  retry-delay:
+    flag: --retry-delay
+    config_path: settings.retry_delay
+    type: duration
+    default: "0s"
+    used_by: ALL_COMMANDS
+    persistent: true
+
+  timeout:
+    flag: --timeout
+    config_path: settings.timeout
+    type: duration
+    default: "30s"
+    used_by: ALL_COMMANDS
+    persistent: true
+
+  parallel:
+    flag: --parallel
+    config_path: settings.parallel
+    type: boolean
+    default: false
+    used_by: ALL_COMMANDS
+    persistent: true
+
+  failure-policy:
+    flag: --failure-policy
+    config_path: settings.failure_policy
+    type: string
+    default: "warn"
+    valid_values: [fail-fast, warn, ignore]
+    used_by: ALL_COMMANDS
+    persistent: true
+
+# Signing flags - used for cryptographic operations
+signing_flags:
+  signer:
+    flag: --signer, -s
+    config_path: pipeline.signing.backend
+    type: string
+    default: "fulcio"
+    valid_values: [file, fulcio]
+    used_by: [run]
+
+  key-path:
+    flag: --key-path, -k
+    config_path: pipeline.signing.key_path
+    type: string
+    default: ""
+    used_by: [run]
+    description: "Private key file path (required for file signing)"
+
+  public-key:
+    flag: --public-key
+    config_path: pipeline.signing.public_key_path
+    type: string
+    default: ""
+    used_by: [run]
+    description: "Public key file path (for verification and Rekor uploads)"
+
+  fulcio-url:
+    flag: --fulcio-url, -u
+    config_path: pipeline.signing.fulcio_url
+    type: string
+    default: "https://fulcio.sigstore.dev"
+    used_by: [run, upload]
+
+  oidc-token:
+    flag: --oidc-token, -t
+    config_path: pipeline.signing.oidc_token
+    type: string
+    default: ""
+    mutually_exclusive: [oidc-token-file, spire, github]
+    used_by: [run]
+
+  oidc-token-file:
+    flag: --oidc-token-file, -f
+    config_path: pipeline.signing.oidc_token_file
+    type: string
+    default: ""
+    mutually_exclusive: [oidc-token, spire, github]
+    used_by: [run]
+
+  spire:
+    flag: --spire
+    config_path: pipeline.signing.use_spire
+    type: boolean
+    default: false
+    mutually_exclusive: [oidc-token, oidc-token-file, github]
+    used_by: [run]
+
+  github:
+    flag: --github
+    config_path: pipeline.signing.use_github
+    type: boolean
+    default: false
+    mutually_exclusive: [oidc-token, oidc-token-file, spire]
+    used_by: [run]
+
+# Password flags for encrypted keys
+password_flags:
+  password:
+    flag: --password
+    config_path: cryptography.key.password
+    type: string
+    default: ""
+    mutually_exclusive: [password-file, prompt]
+    used_by: [generate-key]
+
+  password-file:
+    flag: --password-file
+    config_path: cryptography.key.password_file
+    type: string
+    default: ""
+    mutually_exclusive: [password, prompt]
+    used_by: [generate-key]
+
+  prompt:
+    flag: --prompt
+    config_path: cryptography.key.password_prompt
+    type: boolean
+    default: false
+    mutually_exclusive: [password, password-file]
+    used_by: [generate-key]
+
+# Rekor transparency log flags
+rekor_flags:
+  rekor:
+    flag: --rekor
+    config_path: pipeline.rekor.enable
+    type: boolean
+    default: false
+    used_by: [run, fetch, verify]
+
+  rekor-url:
+    flag: --rekor-url
+    config_path: pipeline.rekor.url
+    type: string
+    default: "https://rekor.sigstore.dev"
+    used_by: [run, fetch, verify, upload]
+
+  rekor-upload:
+    flag: --rekor-upload
+    config_path: pipeline.rekor.upload_target
+    type: string
+    default: "individual"
+    valid_values: [individual, collection, both]
+    used_by: [run]
+
+  rekor-temporal-policy:
+    flag: --rekor-temporal-policy
+    config_path: pipeline.rekor.temporal_policy
+    type: string
+    default: "warn"
+    valid_values: [strict, warn, ignore]
+    used_by: [verify]
+
+# Output flags
+output_flags:
+  output-mode:
+    flag: --output-mode
+    config_path: output.mode
+    type: string
+    default: "individual"
+    valid_values: [individual, collection, both]
+    used_by: [run]
+
+  output-format:
+    flag: --output-format
+    config_path: output.format
+    type: string
+    default: "json"
+    valid_values: [json, yaml]
+    used_by: [run]
+
+  output:
+    flag: --output, -o
+    config_path: output
+    type: string
+    default: ""
+    valid_values: [stdout, file]
+    used_by: [run, fetch]
+
+  pretty:
+    flag: --pretty
+    config_path: output.pretty
+    type: boolean
+    default: false
+    used_by: [run]
+
+# Key generation flags
+generate_key_flags:
+  type:
+    flag: --type, -y
+    config_path: key.type
+    type: string
+    default: "rsa"
+    valid_values: [rsa, ecdsa]
+    used_by: [generate-key]
+
+  output:
+    flag: --output, -o
+    config_path: key.output
+    type: string
+    default: ""
+    required: true
+    used_by: [generate-key]
+
+  overwrite:
+    flag: --overwrite
+    config_path: key.overwrite
+    type: boolean
+    default: false
+    used_by: [generate-key]
+
+# List command flags
+list_flags:
+  predicate-type:
+    flag: --predicate-type
+    config_path: commands.list.predicate_type
+    type: string
+    default: ""
+    used_by: [list]
+
+  show-config:
+    flag: --show-config
+    config_path: commands.list.show_config
+    type: boolean
+    default: false
+    used_by: [list]
+
+# Config show command flags (CURRENT PROJECT SPECIFIC)
+config_show_flags:
+  format:
+    flag: --format, -f
+    config_path: commands.config_show.format
+    type: string
+    default: "yaml"
+    valid_values: [yaml, json, summary]
+    used_by: [config show]
+
+  section:
+    flag: --section, -s
+    config_path: commands.config_show.section
+    type: string
+    default: ""
+    valid_values: [pipeline, workflows]
+    used_by: [config show]
+
+# Fetch command flags
+fetch_flags:
+  file:
+    flag: --file
+    config_path: commands.fetch.file
+    type: string
+    default: ""
+    mutually_exclusive: [uuid, log-index]
+    used_by: [fetch]
+
+  uuid:
+    flag: --uuid
+    config_path: commands.fetch.uuid
+    type: string
+    default: ""
+    mutually_exclusive: [file, log-index]
+    used_by: [fetch]
+
+  log-index:
+    flag: --log-index
+    config_path: commands.fetch.log_index
+    type: string
+    default: ""
+    mutually_exclusive: [file, uuid]
+    used_by: [fetch]
+
+  raw:
+    flag: --raw
+    config_path: commands.fetch.raw
+    type: boolean
+    default: false
+    used_by: [fetch]
+
+# Run command flags
+run_flags:
+  spec:
+    flag: --spec
+    config_path: commands.run.workflow
+    type: string
+    default: ""
+    used_by: [run]
+
+  template:
+    flag: --template
+    config_path: commands.run.template
+    type: string
+    default: ""
+    used_by: [run]
+
+  set:
+    flag: --set
+    config_path: commands.run.set
+    type: string_slice
+    default: []
+    used_by: [run]
+
+# Verify command flags
+verify_flags:
+  verify-rekor:
+    flag: --verify-rekor, -r
+    config_path: pipeline.rekor.enable  # Reused for verification
+    type: boolean
+    default: false
+    used_by: [verify]
+
+  public-key:
+    flag: --public-key, -k
+    config_path: commands.verify.public_key
+    type: string
+    default: ""
+    used_by: [verify]
+
+  output-verification:
+    flag: --output-verification, -o
+    config_path: commands.verify.output_file
+    type: string
+    default: ""
+    used_by: [verify]
+
+# Upload command flags
+upload_flags:
+  public-key:
+    flag: --public-key, -k
+    config_path: commands.upload.public_key
+    type: string
+    default: ""
+    used_by: [upload]
+
+  fulcio-url:
+    flag: --fulcio-url, -u
+    config_path: pipeline.signing.fulcio_url
+    type: string
+    default: "https://fulcio.sigstore.dev"
+    used_by: [upload]
+
+# Destination command flags
+destination_test_flags:
+  set:
+    flag: --set
+    config_path: commands.destination_test.set
+    type: string_slice
+    default: []
+    used_by: [destination test]
+
+  dry-run:
+    flag: --dry-run
+    config_path: commands.destination_test.dry_run
+    type: boolean
+    default: false
+    used_by: [destination test]
+
+  spec:
+    flag: --spec
+    config_path: commands.destination_test.spec
+    type: string
+    default: "test-spec"
+    used_by: [destination test]
+
+destination_list_flags:
+  show-config:
+    flag: --show-config
+    config_path: commands.destination_list.show_config
+    type: boolean
+    default: false
+    used_by: [destination list]
+
+# Command-specific flag mappings
+command_flag_groups:
+  root:
+    flag_groups: []  # Only global flags
+
+  list:
+    flag_groups: [list]
+    flags: [predicate-type, show-config]
+
+  generate-key:
+    flag_groups: [generate-key, password]
+    flags: [type, output, overwrite, password, password-file, prompt]
+
+  run:
+    flag_groups: [signing, rekor, output, run]
+    flags: [signer, key-path, public-key, fulcio-url, oidc-token, oidc-token-file, spire, github, rekor, rekor-url, rekor-upload, output-mode, output-format, output, pretty, spec, template, set]
+
+  fetch:
+    flag_groups: [fetch, rekor]
+    flags: [file, uuid, log-index, raw, rekor-url]
+
+  verify:
+    flag_groups: [rekor, verify]
+    flags: [verify-rekor, public-key, output-verification, rekor-url, rekor-temporal-policy]
+
+  upload:
+    flag_groups: [rekor, upload]
+    flags: [public-key, fulcio-url, rekor-url]
+
+  show-config:
+    flag_groups: []  # No specific flag groups
+    flags: []  # Takes attestor ID as argument only
+
+# Configuration structure reference (from CURRENT PROJECT paths.go)
+configuration_structure:
+  description: "Based on pkg/config/paths.go analysis from CURRENT PROJECT"
+
+  log:
+    - log.level
+    - log.format
+    - log.file
+
+  settings:
+    - settings.verbose
+    - settings.quiet
+    - settings.debug
+    - settings.no_color
+    - settings.insecure
+    - settings.max_retries
+    - settings.retry_delay
+    - settings.timeout
+    - settings.parallel
+    - settings.failure_policy
+
+  pipeline:
+    signing:
+      - pipeline.signing.backend
+      - pipeline.signing.key_path
+      - pipeline.signing.public_key_path
+      - pipeline.signing.fulcio_url
+      - pipeline.signing.oidc_token
+      - pipeline.signing.oidc_token_file
+      - pipeline.signing.use_spire
+      - pipeline.signing.use_github
+
+    rekor:
+      - pipeline.rekor.enable
+      - pipeline.rekor.url
+      - pipeline.rekor.upload_target
+      - pipeline.rekor.temporal_policy
+
+    retry:
+      - pipeline.retry.default
+      - pipeline.retry.signing
+      - pipeline.retry.rekor
+
+  output:
+    - output.mode
+    - output.format
+    - output
+    - output.file
+    - output.pretty
+
+  batch:
+    - batch.max_parallel
+    - batch.failure_policy
+    - batch.execution_mode
+
+  key:
+    - key.type
+    - key.output
+    - key.overwrite
+
+  cryptography:
+    - cryptography.key.password
+    - cryptography.key.password_file
+    - cryptography.key.password_prompt
+
+  commands:
+    list:
+      - commands.list.predicate_type
+      - commands.list.show_config
+
+    config_show:
+      - commands.config_show.format
+      - commands.config_show.section
+
+    destination_test:
+      - commands.destination_test.set
+      - commands.destination_test.dry_run
+      - commands.destination_test.spec
+
+    destination_list:
+      - commands.destination_list.show_config
+
+    fetch:
+      - commands.fetch.file
+      - commands.fetch.uuid
+      - commands.fetch.log_index
+      - commands.fetch.raw
+
+    run:
+      - commands.run.workflow
+      - commands.run.template
+      - commands.run.set
+
+    verify:
+      - commands.verify.public_key
+      - commands.verify.output_file
+
+    upload:
+      - commands.upload.public_key
+
+  # Special top-level paths
+  workflows: "workflows"  # Top-level workflows configuration
+
+# Special exceptions and notes
+exceptions:
+  config_commands:
+    description: "Config show command flags exist in CURRENT PROJECT registry.go"
+    note: "ConfigShowFlags group exists with format and section flags"
+    commands:
+      config_show:
+        flag_groups: [config-show]
+        flags: [format, section]
+        paths:
+          format: commands.config_show.format
+          section: commands.config_show.section
+
+  destination_commands:
+    description: "Destination commands analyzed from the CLI commands"
+    commands:
+      destination_test:
+        flag_groups: [destination-test]
+        flags: [set, dry-run, spec]
+
+      destination_list:
+        flag_groups: [destination-list]
+        flags: [show-config]
+
+  missing_from_cli:
+    description: "Commands that exist in current registry but not found in the CLI commands"
+    missing_commands:
+      - config show  # Has flags in registry but no command implementation in the CLI

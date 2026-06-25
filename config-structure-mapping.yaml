@@ -1,0 +1,607 @@
+# Copyright 2026 Thomson Reuters
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Configuration Structure Mapping
+# This file shows the mapping between Go constants (from pkg/config/paths.go)
+# and their corresponding configuration paths, along with the structure of
+# dynamic configuration sections.
+
+# =============================================================================
+# STATIC CONFIGURATION PATHS
+# =============================================================================
+# These are controlled by constants in pkg/config/paths.go
+
+# Logging Configuration
+# Maps to: pkg/config/paths.go LogLevel, LogFormat, LogFile
+log:
+  level: "debug|info|warn|error"                     # LogLevel
+  format: "console|json"                             # LogFormat
+  file: "/path/to/log/file"                          # LogFile
+
+# General Settings
+# Maps to: pkg/config/paths.go General application configuration section
+settings:
+  verbose: false                                     # Verbose
+  quiet: false                                       # Quiet
+  debug: false                                       # Debug
+  no_color: false                                    # NoColor
+  insecure: false                                    # Insecure
+  max_retries: 3                                     # MaxRetries
+  retry_delay: "1s"                                  # RetryDelay
+  max_delay: "30s"                                   # MaxDelay
+  timeout: "30s"                                     # Timeout
+  parallel: false                                    # Parallel
+  failure_policy: "fail-fast|warn|ignore"            # FailurePolicy
+
+# Output Configuration
+# Maps to: pkg/config/paths.go Output configuration section
+output:
+  mode: "individual|collection|both"                # OutputMode
+  format: "json|yaml"                               # OutputFormat
+  file: "/path/to/output"                           # OutputFile
+  pretty: true                                      # OutputPretty
+  # Note: Output (base path for output destination)
+
+# Pipeline Configuration
+pipeline:
+  # Signing Configuration
+  # Maps to: pkg/config/paths.go Signing configuration section
+  signing:
+    backend: "file|fulcio"                          # SigningBackend
+    key_path: "/path/to/private.key"                # KeyPath
+    public_key_path: "/path/to/public.key"          # PublicKeyPath
+    fulcio_url: "https://fulcio.sigstore.dev"       # FulcioURL
+    oidc_token: "token_value"                       # OIDCToken
+    oidc_token_file: "/path/to/token"               # OIDCTokenFile
+    use_spire: false                                # UseSpire
+    use_github: false                               # UseGitHub
+
+  # Rekor (Transparency Log) Configuration
+  # Maps to: pkg/config/paths.go Transparency log configuration section
+  rekor:
+    enable: true                                    # TransparencyEnable
+    url: "https://rekor.sigstore.dev"               # RekorURL
+    upload_target: "individual|collection|both"     # RekorUploadTarget
+    temporal_policy: "strict|warn|ignore"           # RekorTemporalPolicy
+
+  # Retry Configuration
+  # Maps to: pkg/config/paths.go Retry configuration section
+  retry:
+    default:                                         # RetryPolicy struct - RetryDefault
+      max_attempts: 3
+      initial_delay: "1s"
+      max_delay: "30s"
+      multiplier: 2.0
+      max_parallel: 1
+      default_timeout: "30s"
+    signing:                                         # RetryPolicy struct - RetrySigning
+      max_attempts: 3
+      initial_delay: "1s"
+      max_delay: "30s"
+      multiplier: 2.0
+    rekor:                                           # RetryPolicy struct - RetryRekor
+      max_attempts: 3
+      initial_delay: "1s"
+      max_delay: "30s"
+      multiplier: 2.0
+
+# Batch Processing Configuration
+# Maps to: pkg/config/paths.go Batch execution configuration section
+batch:
+  max_parallel: 5                                   # BatchMaxParallel
+  failure_policy: "fail-fast|warn|ignore"           # BatchFailurePolicy
+  execution_mode: "sequential|parallel"             # BatchExecutionMode
+
+# Key Generation Configuration
+# Maps to: pkg/config/paths.go Key generation configuration section
+key:
+  type: "rsa|ecdsa"                                  # KeyType
+  output: "/path/to/generated/key"                   # KeyOutput
+  overwrite: false                                   # KeyOverwrite
+
+# Cryptography Configuration
+# Maps to: pkg/config/paths.go cryptography section
+cryptography:
+  key:
+    password: "secret"                               # CryptographyKeyPassword
+    password_file: "/path/to/pass"                   # CryptographyKeyPasswordFile
+    password_prompt: false                           # CryptographyKeyPasswordPrompt
+
+# Configuration Management
+# Maps to: pkg/config/paths.go Configuration validation/generation sections
+config:
+  file: "/path/to/config.yaml"                       # ConfigFile
+  validate:
+    verbose: false                                   # ConfigValidateVerbose
+    json: false                                      # ConfigValidateJSON
+  generate:
+    template: "basic|advanced"                       # ConfigGenerateTemplate
+    output: "/path/to/generated.yaml"                # ConfigGenerateOutput
+    spec_name: "example-workflow"                         # ConfigGenerateSpecName
+    fulcio_url: "https://fulcio.sigstore.dev"        # ConfigGenerateFulcioURL
+    rekor_url: "https://rekor.sigstore.dev"          # ConfigGenerateRekorURL
+
+# Command-Specific Configuration
+# Maps to: pkg/config/paths.go Command-specific configuration section
+commands:
+  list:
+    predicate_type: "filter_value"                   # ListPredicateType
+    show_config: false                               # ListShowConfig
+
+  destination_test:
+    set: ["key=value"]                               # DestinationTestSet
+    dry_run: false                                   # DestinationTestDryRun
+    spec: "workflow_name"                            # DestinationTestSpec
+
+  destination_list:
+    show_config: false                               # DestinationListShowConfig
+
+  config_show:
+    format: "yaml|json|summary"                      # ConfigShowFormat
+    section: "pipeline|workflows"                    # ConfigShowSection
+
+  fetch:
+    file: "/path/to/attestation"                     # FetchFile
+    uuid: "rekor-uuid"                               # FetchUUID
+    log_index: 123456                                # FetchLogIndex
+    raw: false                                       # FetchRaw
+
+  run:
+    spec: "workflow_name"                            # RunSpec
+    template: "/path/template"                       # RunTemplate
+    set: ["key=value"]                               # RunSet
+
+  verify:
+    public_key: "/path/to/public.key"                # VerifyPublicKey
+    output_file: "/path/to/result.json"              # VerifyOutputFile
+
+  upload:
+    public_key: "/path/to/public.key"                # UploadPublicKey
+
+# =============================================================================
+# DYNAMIC CONFIGURATION SECTIONS
+# =============================================================================
+# These sections have dynamic structure based on pkg/config/types.go
+
+# Workflows Configuration
+# Maps to: Workflows constant
+# Structure based on: Workflow struct in pkg/config/types.go
+workflows:
+  # Each workflow has a user-defined name as key
+  ci_pipeline:                                      # User-defined workflow name
+    name: "ci_pipeline"                             # Workflow.Name
+    output_mode: "individual|collection|both"       # Workflow.OutputMode
+    rekor:                                          # Workflow.RekorConfig
+      upload: true                                  # RekorConfig.Upload
+      upload_target: "collection"                   # RekorConfig.UploadTarget
+    attestors:                                      # Workflow.Attestors array
+      - id: "git-info"                              # Attestor.ID
+        config:                                     # Attestor.Config (map[string]interface{})
+          include_uncommitted: false
+          include_remotes: true
+          redact_author_email: false
+      - id: "command-run"                           # Another attestor
+        config:
+          command: "make test"
+          working_directory: "."
+          capture_output: true
+          timeout: "5m"
+      - id: "threat-model"                          # Another attestor
+        config:
+          model_file: "./threat-model.yaml"
+          include_mitigations: true
+          validate_schema: true
+
+  security_scan:                                    # Another workflow
+    name: "security_scan"
+    output_mode: "individual"
+    rekor:
+      upload: false
+    attestors:
+      - id: "git-info"
+        config:
+          include_uncommitted: true
+      - id: "command-run"
+        config:
+          command: "security-scanner --output json"
+          working_directory: "."
+
+# =============================================================================
+# AVAILABLE DESTINATION TYPES & THEIR SCHEMAS
+# =============================================================================
+# Based on implementations in pkg/destination/*/config.go
+
+destination_types:
+  file:
+    description: "Write attestations to local files"
+    config_schema:
+      path:
+        type: "string"
+        required: false
+        default: "./attestations"
+        description: "Output directory or file path"
+        examples: ["./output", "/var/attestations", "attestation.json"]
+      template:
+        type: "string"
+        required: false
+        default: "${attestor}/${id}.json"
+        description: "File path template with variable substitution"
+        examples: ["${attestor}/${date}/${id}.json", "${spec}/${attestor}-${timestamp}.json"]
+      collection_template:
+        type: "string"
+        required: false
+        default: ""
+        description: "Specific template for collection attestations"
+      permissions:
+        type: "string"
+        required: false
+        default: "0644"
+        description: "File permissions for created files (octal format)"
+      create_dirs:
+        type: "boolean"
+        required: false
+        default: true
+        description: "Create intermediate directories if they don't exist"
+      overwrite:
+        type: "boolean"
+        required: false
+        default: false
+        description: "Allow overwriting existing files"
+      compression:
+        type: "string"
+        required: false
+        default: "none"
+        description: "Compression type"
+        examples: ["none", "gzip", "zstd"]
+      pretty:
+        type: "boolean"
+        required: false
+        default: false
+        description: "Enable JSON pretty printing"
+      atomic_writes:
+        type: "boolean"
+        required: false
+        default: false
+        description: "Enable atomic writes using temporary files"
+
+  stdout:
+    description: "Output attestations to standard output"
+    config_schema:
+      format:
+        type: "string"
+        required: false
+        default: "json"
+        description: "Output format"
+        examples: ["json", "jsonl", "yaml", "yaml-stream"]
+      pretty:
+        type: "boolean"
+        required: false
+        default: false
+        description: "Enable pretty-printed output"
+      stream:
+        type: "boolean"
+        required: false
+        default: false
+        description: "Enable streaming mode for large attestations"
+      buffer:
+        type: "integer"
+        required: false
+        default: 0
+        description: "Buffer size in KB for streaming"
+      aggregate:
+        type: "boolean"
+        required: false
+        default: false
+        description: "Combine multiple attestations into single JSON array"
+
+  s3:
+    description: "Upload attestations to AWS S3 or S3-compatible storage"
+    config_schema:
+      bucket:
+        type: "string"
+        required: true
+        description: "S3 bucket name"
+      region:
+        type: "string"
+        required: false
+        default: "us-east-1"
+        description: "AWS region"
+      endpoint:
+        type: "string"
+        required: false
+        description: "Custom endpoint for S3-compatible services (MinIO, etc.)"
+        examples: ["https://minio.example.com", "https://s3.amazonaws.com"]
+      profile:
+        type: "string"
+        required: false
+        description: "AWS profile name (uses AWS credentials/config files)"
+      use_path_style:
+        type: "boolean"
+        required: false
+        default: false
+        description: "Use path-style URLs (required for MinIO)"
+      key_template:
+        type: "string"
+        required: false
+        default: "${attestor}/${date}/${id}.json"
+        description: "Template for S3 object keys"
+        examples: ["${attestor}/${date}/${id}.json", "${spec}/${timestamp}/${id}.json"]
+      content_type:
+        type: "string"
+        required: false
+        default: "application/json"
+        description: "Content-Type header for uploaded objects"
+      storage_class:
+        type: "string"
+        required: false
+        default: "STANDARD"
+        description: "S3 storage class"
+        examples: ["STANDARD", "STANDARD_IA", "GLACIER", "DEEP_ARCHIVE"]
+      overwrite:
+        type: "boolean"
+        required: false
+        default: false
+        description: "Allow overwriting existing S3 objects"
+      encryption:
+        type: "string"
+        required: false
+        description: "Server-side encryption type"
+        examples: ["AES256", "aws:kms"]
+      kms_key_id:
+        type: "string"
+        required: false
+        description: "KMS key ID for encryption (required when encryption=aws:kms)"
+      tags:
+        type: "object"
+        required: false
+        description: "Object tags with template support"
+        examples: [{"Environment": "production", "Project": "${spec}"}]
+
+  api:
+    description: "Send attestations to HTTP API endpoints"
+    config_schema:
+      endpoint:
+        type: "string"
+        required: true
+        description: "API endpoint URL"
+        examples: ["https://api.example.com/attestations"]
+      method:
+        type: "string"
+        required: false
+        default: "POST"
+        description: "HTTP method"
+        examples: ["POST", "PUT", "PATCH"]
+      timeout:
+        type: "string"
+        required: false
+        default: "30s"
+        description: "Request timeout (Go duration format)"
+      insecure:
+        type: "boolean"
+        required: false
+        default: false
+        description: "Skip TLS certificate verification"
+      auth_type:
+        type: "string"
+        required: false
+        default: "none"
+        description: "Authentication type"
+        examples: ["none", "bearer", "basic", "api_key", "mtls"]
+      bearer_token:
+        type: "string"
+        required: false
+        description: "Bearer token (when auth_type=bearer)"
+      username:
+        type: "string"
+        required: false
+        description: "Username (when auth_type=basic)"
+      password:
+        type: "string"
+        required: false
+        description: "Password (when auth_type=basic)"
+      api_key:
+        type: "string"
+        required: false
+        description: "API key value (when auth_type=api_key)"
+      api_key_header:
+        type: "string"
+        required: false
+        description: "API key header name (when auth_type=api_key)"
+        examples: ["X-API-Key", "Authorization"]
+      client_cert:
+        type: "string"
+        required: false
+        description: "Path to client certificate (when auth_type=mtls)"
+      client_key:
+        type: "string"
+        required: false
+        description: "Path to client private key (when auth_type=mtls)"
+      ca_cert:
+        type: "string"
+        required: false
+        description: "Path to CA certificate (when auth_type=mtls)"
+      body_template:
+        type: "string"
+        required: false
+        default: '{"id":"{{.ID}}","attestor":"{{.AttestorID}}","data":"{{.EnvelopeJSON | toBase64}}"}'
+        description: "Go template for request body"
+      headers:
+        type: "object"
+        required: false
+        description: "Custom HTTP headers"
+        examples: [{"Content-Type": "application/json", "User-Agent": "attestor/1.0"}]
+      query_params:
+        type: "object"
+        required: false
+        description: "Query parameters to include in requests"
+      max_retries:
+        type: "integer"
+        required: false
+        default: 3
+        description: "Maximum retry attempts"
+      retry_delay:
+        type: "string"
+        required: false
+        default: "1s"
+        description: "Initial retry delay (Go duration format)"
+      retry_backoff:
+        type: "number"
+        required: false
+        default: 2.0
+        description: "Backoff multiplier for retries"
+      circuit_breaker:
+        type: "object"
+        required: false
+        description: "Circuit breaker configuration"
+        properties:
+          enabled:
+            type: "boolean"
+            default: true
+          failure_threshold:
+            type: "integer"
+            default: 5
+          recovery_timeout:
+            type: "string"
+            default: "60s"
+          request_timeout:
+            type: "string"
+            default: "10s"
+      accepted_status_codes:
+        type: "array"
+        required: false
+        default: [200, 201, 202, 204]
+        description: "HTTP status codes considered successful"
+      content_type:
+        type: "string"
+        required: false
+        default: "application/json"
+        description: "Content-Type header value"
+      compression:
+        type: "boolean"
+        required: false
+        default: true
+        description: "Enable gzip compression"
+
+# =============================================================================
+# AVAILABLE ATTESTOR TYPES & THEIR SCHEMAS
+# =============================================================================
+# Based on implementations in pkg/attestors/*/attestor.go
+
+attestor_types:
+  git-info:
+    id: "git-info"
+    predicate_uri: "https://attestations.dev/git/v1"
+    name: "Git Information Attestor"
+    description: "Captures Git repository state and commit information"
+    config_schema:
+      include_uncommitted:
+        type: "boolean"
+        required: false
+        default: false
+        description: "Include information about uncommitted changes"
+      include_remotes:
+        type: "boolean"
+        required: false
+        default: true
+        description: "Include remote repository information"
+      redact_author_email:
+        type: "boolean"
+        required: false
+        default: false
+        description: "Redact author email addresses for privacy"
+      working_directory:
+        type: "string"
+        required: false
+        default: "."
+        description: "Git repository working directory"
+
+  command-run:
+    id: "command-run"
+    predicate_uri: "https://attestations.dev/command-run/v1"
+    name: "Command Execution Attestor"
+    description: "Executes commands and captures their output and exit status"
+    config_schema:
+      command:
+        type: "string"
+        required: true
+        description: "Command to execute"
+        examples: ["make test", "npm run build", "go test ./..."]
+      working_directory:
+        type: "string"
+        required: false
+        default: "."
+        description: "Working directory for command execution"
+      capture_output:
+        type: "boolean"
+        required: false
+        default: true
+        description: "Capture command stdout and stderr"
+      timeout:
+        type: "string"
+        required: false
+        default: "5m"
+        description: "Command execution timeout (Go duration format)"
+      environment_variables:
+        type: "object"
+        required: false
+        description: "Environment variables to set for command execution"
+      include_environment:
+        type: "boolean"
+        required: false
+        default: false
+        description: "Include current environment variables in attestation"
+
+  threat-model:
+    id: "threat-model"
+    predicate_uri: "https://attestations.dev/threat-model/v1"
+    name: "Threat Model Attestor"
+    description: "Validates and attests to threat model documentation"
+    config_schema:
+      model_file:
+        type: "string"
+        required: true
+        description: "Path to threat model file"
+        examples: ["./threat-model.yaml", "./security/threats.json"]
+      include_mitigations:
+        type: "boolean"
+        required: false
+        default: true
+        description: "Include mitigation strategies in attestation"
+      validate_schema:
+        type: "boolean"
+        required: false
+        default: true
+        description: "Validate threat model against known schema"
+      schema_version:
+        type: "string"
+        required: false
+        default: "v1"
+        description: "Threat model schema version to validate against"
+
+# =============================================================================
+# NOTES ON CONFIGURATION STRUCTURE
+# =============================================================================
+#
+# 1. Static paths are controlled by constants in pkg/config/paths.go
+# 2. Dynamic sections (workflows) have user-defined keys
+# 3. Each workflow contains an array of attestors with their configurations
+# 4. Attestor configurations are dynamic based on the attestor type
+# 5. Retry policies follow the RetryPolicy struct definition
+# 6. Command-specific configurations are namespaced under 'commands.*'
+# 7. Template variables available: ${attestor}, ${id}, ${spec} (workflow name), ${date}, ${timestamp}
+# 10. All timeout values use Go duration format: "30s", "5m", "1h", etc.
+# 11. Environment variable expansion is supported using ${VAR} or ${VAR:default} format
+# 12. AWS credentials can be provided via environment variables, config files, or IAM roles
+# 13. S3 destination supports both AWS S3 and S3-compatible services (MinIO, etc.)
+# 14. API destination supports multiple authentication methods and circuit breaker pattern

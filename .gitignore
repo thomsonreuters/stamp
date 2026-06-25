@@ -1,0 +1,81 @@
+# Go
+bin/
+attestor
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+coverage.out
+coverage.html
+vendor/
+
+# Build & Release
+dist/
+output/
+!pkg/output/
+
+# IDE & Editors
+.vscode/*
+.idea/
+*.iml
+*.swp
+*.swo
+*~
+.DS_Store
+
+# AI Assistants
+.claude/
+.serena/
+.cursor/
+
+# Credentials & Secrets
+*.key
+*.pub
+*.pem
+*.crt
+*.csr
+TOKEN
+.env
+.env.local
+.env.*.local
+
+# Project-specific
+documents/
+configurations/
+scripts/
+.ignored/
+*.tmp
+*.log
+*.bak
+test-*
+test_*
+
+# File types with exceptions
+*.txt
+*.md
+*.json
+!README.md
+!LICENSE.md
+!CHANGELOG.md
+!CONTRIBUTING.md
+!SECURITY.md
+!docs/**/*.md
+!go.mod
+!go.sum
+!package.json
+!package-lock.json
+!tsconfig.json
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+!.golangci.yml
+!.goreleaser.yaml
+!.pre-commit-config.yaml
+
+# AI
+.claude/
+.serena/
+.cursor/
