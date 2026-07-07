@@ -1,6 +1,6 @@
 # Go
 bin/
-attestor
+/stamp
 *.exe
 *.exe~
 *.dll

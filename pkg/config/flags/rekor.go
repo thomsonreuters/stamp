@@ -28,8 +28,8 @@ var RekorEnableFlags = plugincobra.FlagGroup{
 		Name:       "rekor",
 		ConfigPath: TransparencyEnable,
 		Type:       plugincobra.BoolFlag,
-		Default:    false,
-		Help:       "Upload attestations to Rekor transparency log",
+		Default:    true,
+		Help:       "Upload attestations to Rekor transparency log (default: true; pass --rekor=false to disable)",
 	},
 }
 

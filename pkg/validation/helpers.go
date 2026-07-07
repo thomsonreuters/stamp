@@ -73,11 +73,16 @@ func ValidateCommandConstraints(cmd *cobra.Command, cfg config.ConfigurationIfac
 	return ValidateAllConstraints(cfg, applicable...)
 }
 
-// isGroupApplicable checks whether any flag from the group is registered on the
-// command (locally or inherited from parent commands).
+// isGroupApplicable reports whether the group was applied to this command.
+// Match on ConfigPath (not flag name) because names like --overwrite collide
+// across groups.
 func isGroupApplicable(cmd *cobra.Command, group plugincobra.FlagGroup) bool {
-	for name := range group {
-		if cmd.Flag(name) != nil {
+	for name, def := range group {
+		f := cmd.Flag(name)
+		if f == nil {
+			continue
+		}
+		if paths := f.Annotations[plugincobra.AnnotationConfigPath]; len(paths) > 0 && paths[0] == def.ConfigPath {
 			return true
 		}
 	}
