@@ -33,7 +33,7 @@ import (
 	pkgerrors "github.com/thomsonreuters/stamp/pkg/errors"
 	"github.com/thomsonreuters/stamp/pkg/logger"
 	"github.com/thomsonreuters/stamp/pkg/output"
-	"github.com/thomsonreuters/stamp/pkg/sign/container"
+	"github.com/thomsonreuters/stamp/pkg/signing/container"
 	"go.step.sm/crypto/pemutil"
 )
 
