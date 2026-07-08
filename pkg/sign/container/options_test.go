@@ -186,21 +186,3 @@ func TestOptions_buildSigningMaterial_KeyModeUnsupportedCurve(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "keypair adapter")
 }
-
-func TestRekorOptions_resolvedVersion(t *testing.T) {
-	tests := []struct {
-		name string
-		in   uint32
-		want uint32
-	}{
-		{"zero defaults to 1", 0, 1},
-		{"explicit v1", 1, 1},
-		{"explicit v2", 2, 2},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			r := RekorOptions{Version: tt.in}
-			assert.Equal(t, tt.want, r.resolvedVersion())
-		})
-	}
-}

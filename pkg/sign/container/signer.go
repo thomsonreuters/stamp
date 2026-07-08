@@ -96,7 +96,6 @@ func (s *Signer) Sign(ctx context.Context, imageRef string, opts Options) (*Resu
 		bundleOpts.TransparencyLogs = []sign.Transparency{
 			sign.NewRekor(&sign.RekorOptions{
 				BaseURL: opts.Rekor.URL,
-				Version: opts.Rekor.resolvedVersion(),
 			}),
 		}
 	}

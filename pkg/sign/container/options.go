@@ -48,8 +48,6 @@ type FulcioOptions struct {
 
 type RekorOptions struct {
 	URL string
-	// Version: 1 for classic Rekor, 2 for rekor-tiles. Zero defaults to 1.
-	Version uint32
 }
 
 type RegistryOptions struct {
@@ -110,11 +108,4 @@ func (o *Options) buildSigningMaterial() (sign.Keypair, sign.CertificateProvider
 		return nil, nil, nil, fmt.Errorf("container sign: keypair adapter: %w", err)
 	}
 	return kp, nil, nil, nil
-}
-
-func (r *RekorOptions) resolvedVersion() uint32 {
-	if r.Version == 0 {
-		return 1
-	}
-	return r.Version
 }

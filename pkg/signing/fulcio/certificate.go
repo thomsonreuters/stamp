@@ -35,10 +35,6 @@ import (
 //  3. SPIRE workload API (--spire or --socket)
 //  4. GitHub Actions (--github)
 //  5. Auto-detection: GitHub environment or default SPIRE socket (last resort).
-//
-// Exported so callers outside the fulcio signer (e.g. keyless container
-// signing that delegates to sigstore-go's sign.Bundle) can reuse the same
-// token resolution rules.
 func ResolveToken(ctx context.Context, config signing.FulcioSignerConfig) (string, error) {
 	if config.Token != "" {
 		return config.Token, nil
