@@ -32,14 +32,14 @@ cosign-shaped in-toto Statement, and signed via sigstore-go's sign.Bundle.
 Fulcio keyless signing is supported via --signer fulcio.
 
 Transparency:
-  Rekor upload is on by default (URL: https://rekor.sigstore.dev).
-  Override the URL with --rekor-url, or disable uploads with --rekor=false.
+  Pass --rekor to upload the signed bundle to a transparency log
+  (--rekor-url overrides the default endpoint).
 
 Registry authentication:
   Set REGISTRY_USERNAME and REGISTRY_PASSWORD in the environment for
   authenticated registries; leaving them unset falls back to the Docker
   keychain (which covers anonymous pulls of public images).`,
-	Example: `  # Key-based signing with default Rekor upload (rekor.sigstore.dev)
+	Example: `  # Key-based signing (no Rekor upload)
   stamp container sign registry.example.com/app:v1 \
       --signer key --private-key ./cosign.key \
       --bundle-output ./bundle.json
@@ -50,15 +50,10 @@ Registry authentication:
       --signer key --private-key ./cosign.key --prompt \
       --bundle-output ./bundle.json --overwrite
 
-  # Skip Rekor upload (air-gapped or Rekor-less workflows)
-  stamp container sign registry.example.com/app:v1 \
-      --signer key --private-key ./cosign.key \
-      --rekor=false --bundle-output ./bundle.json
-
   # Keyless signing with a custom Rekor instance
   stamp container sign registry.example.com/app:v1 \
       --signer fulcio --oidc-token-file ./token \
-      --rekor-url https://rekor.example.com \
+      --rekor --rekor-url https://rekor.example.com \
       --bundle-output ./bundle.json
 
   # Signing an ECR image using AWS-derived static credentials
