@@ -166,9 +166,6 @@ func (o *ContainerSignOp) buildSignOptions(ctx context.Context) (container.Optio
 	return opts, nil
 }
 
-// registryCredsFromEnv returns nil if either env var is empty, so a
-// partial credential never reaches authn (which would fail with a
-// misleading error).
 func registryCredsFromEnv() *container.RegistryOptions {
 	user := os.Getenv(envRegistryUsername)
 	pass := os.Getenv(envRegistryPassword)
