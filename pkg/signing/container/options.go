@@ -15,39 +15,17 @@
 package container
 
 import (
-	"crypto"
 	"errors"
 	"fmt"
 
-	protobundle "github.com/sigstore/protobuf-specs/gen/pb-go/bundle/v1"
-	"github.com/sigstore/sigstore-go/pkg/sign"
+	"github.com/thomsonreuters/stamp/pkg/signing/sigstore"
 )
 
-// Options for Signer.Sign. Exactly one of Key or Fulcio must be set.
-// Registry and Rekor are optional; a nil Registry falls back to the
-// Docker keychain (which handles anonymous pulls of public images).
+// Options for Signer.Sign. A nil Registry falls back to the Docker
+// keychain (which handles anonymous pulls of public images).
 type Options struct {
-	Key      *KeyOptions
-	Fulcio   *FulcioOptions
-	Rekor    *RekorOptions
+	sigstore.Options
 	Registry *RegistryOptions
-}
-
-type KeyOptions struct {
-	Signer crypto.Signer
-	// Hint is the key id embedded in the DSSE signature so verifiers
-	// know which public key to check against.
-	Hint []byte
-}
-
-type FulcioOptions struct {
-	URL string
-	// IDToken's issuer must be trusted by the target Fulcio instance.
-	IDToken string
-}
-
-type RekorOptions struct {
-	URL string
 }
 
 type RegistryOptions struct {
@@ -56,35 +34,14 @@ type RegistryOptions struct {
 }
 
 type Result struct {
-	Bundle     *protobundle.Bundle
-	BundleJSON []byte
+	sigstore.Result
 	// Digest is the resolved image manifest digest (e.g. "sha256:abc...").
 	Digest string
 }
 
 func (o *Options) validate() error {
-	if o.Key == nil && o.Fulcio == nil {
-		return errors.New("container sign: one of Key or Fulcio is required")
-	}
-	if o.Key != nil && o.Fulcio != nil {
-		return errors.New("container sign: Key and Fulcio are mutually exclusive")
-	}
-	if o.Key != nil && o.Key.Signer == nil {
-		return errors.New("container sign: Key.Signer is required")
-	}
-	if o.Key != nil && len(o.Key.Hint) == 0 {
-		return errors.New("container sign: Key.Hint is required (verifier lookup id)")
-	}
-	if o.Fulcio != nil {
-		if o.Fulcio.URL == "" {
-			return errors.New("container sign: Fulcio.URL is required")
-		}
-		if o.Fulcio.IDToken == "" {
-			return errors.New("container sign: Fulcio.IDToken is required")
-		}
-	}
-	if o.Rekor != nil && o.Rekor.URL == "" {
-		return errors.New("container sign: Rekor.URL is required")
+	if err := o.Options.Validate(); err != nil {
+		return fmt.Errorf("container sign: %w", err)
 	}
 	// Registry is optional (anonymous / keychain fallback); reject only
 	// the half-set case, which would produce a malformed Basic Auth header.
@@ -92,20 +49,4 @@ func (o *Options) validate() error {
 		return errors.New("container sign: Registry.Username and Registry.Password must be set together")
 	}
 	return nil
-}
-
-func (o *Options) buildSigningMaterial() (sign.Keypair, sign.CertificateProvider, *sign.CertificateProviderOptions, error) {
-	if o.Fulcio != nil {
-		kp, err := sign.NewEphemeralKeypair(nil)
-		if err != nil {
-			return nil, nil, nil, fmt.Errorf("container sign: ephemeral keypair: %w", err)
-		}
-		provider := sign.NewFulcio(&sign.FulcioOptions{BaseURL: o.Fulcio.URL})
-		return kp, provider, &sign.CertificateProviderOptions{IDToken: o.Fulcio.IDToken}, nil
-	}
-	kp, err := newKeypairAdapter(o.Key.Signer, o.Key.Hint)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("container sign: keypair adapter: %w", err)
-	}
-	return kp, nil, nil, nil
 }

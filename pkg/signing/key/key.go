@@ -23,11 +23,11 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/thomsonreuters/stamp/pkg/crypto/keys"
 	pkgerrors "github.com/thomsonreuters/stamp/pkg/errors"
 	"github.com/thomsonreuters/stamp/pkg/signing"
+	"github.com/thomsonreuters/stamp/pkg/utils"
 )
 
 const signerID = "key"
@@ -135,19 +135,10 @@ func (s *Signer) PublicKey() (crypto.PublicKey, error) {
 }
 
 func (s *Signer) getPassword(config signing.KeySignerConfig) (string, error) {
-	if config.KeyPassword != "" {
-		return config.KeyPassword, nil
-	}
-
-	if config.KeyPasswordFile != "" {
-		data, err := os.ReadFile(config.KeyPasswordFile)
-		if err != nil {
-			return "", pkgerrors.WrapWithContext(err, "key_signer", "read", fmt.Sprintf("failed to read password file: %s", config.KeyPasswordFile))
-		}
-		return strings.TrimSpace(string(data)), nil
-	}
-
-	return "", nil
+	return utils.ResolveKeyPassword(utils.KeyPasswordConfig{
+		Password:     config.KeyPassword,
+		PasswordFile: config.KeyPasswordFile,
+	})
 }
 
 // New creates a new key-based signer.

@@ -23,6 +23,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/thomsonreuters/stamp/pkg/signing/sigstore"
 )
 
 // newTestECDSAKey returns a fresh P-256 crypto.Signer for tests.
@@ -35,8 +36,9 @@ func newTestECDSAKey(t *testing.T) crypto.Signer {
 
 func TestOptions_validate(t *testing.T) {
 	signer := newTestECDSAKey(t)
+	validKey := &sigstore.KeyOptions{Signer: signer, Hint: []byte("id")}
+	validSigstore := sigstore.Options{Key: validKey}
 	registry := &RegistryOptions{Username: "user", Password: "pass"}
-	validKey := &KeyOptions{Signer: signer, Hint: []byte("id")}
 
 	tests := []struct {
 		name    string
@@ -44,78 +46,29 @@ func TestOptions_validate(t *testing.T) {
 		wantErr string
 	}{
 		{
-			name:    "missing key and fulcio",
+			// Verifies the sigstore delegation path: a missing Key/Fulcio must
+			// still surface through container.Options.validate.
+			name:    "delegates to sigstore: missing key and fulcio",
 			opts:    Options{Registry: registry},
 			wantErr: "one of Key or Fulcio is required",
 		},
 		{
-			name: "key and fulcio both set",
-			opts: Options{
-				Key:      validKey,
-				Fulcio:   &FulcioOptions{URL: "https://fulcio.example.com", IDToken: "tok"},
-				Registry: registry,
-			},
-			wantErr: "Key and Fulcio are mutually exclusive",
-		},
-		{
-			name: "key without signer",
-			opts: Options{
-				Key:      &KeyOptions{Hint: []byte("id")},
-				Registry: registry,
-			},
-			wantErr: "Key.Signer is required",
-		},
-		{
-			name: "key without hint",
-			opts: Options{
-				Key:      &KeyOptions{Signer: signer},
-				Registry: registry,
-			},
-			wantErr: "Key.Hint is required",
-		},
-		{
-			name: "fulcio without URL",
-			opts: Options{
-				Fulcio:   &FulcioOptions{IDToken: "tok"},
-				Registry: registry,
-			},
-			wantErr: "Fulcio.URL is required",
-		},
-		{
-			name: "fulcio without token",
-			opts: Options{
-				Fulcio:   &FulcioOptions{URL: "https://fulcio.example.com"},
-				Registry: registry,
-			},
-			wantErr: "Fulcio.IDToken is required",
-		},
-		{
-			name: "rekor without URL",
-			opts: Options{
-				Key:      validKey,
-				Rekor:    &RekorOptions{},
-				Registry: registry,
-			},
-			wantErr: "Rekor.URL is required",
-		},
-		{
-			// Signer.Sign uses the keychain when Registry is nil.
 			name: "nil registry passes validation",
-			opts: Options{Key: validKey},
+			opts: Options{Options: validSigstore},
 		},
 		{
-			// Empty struct also routes to the keychain (see
-			// hasExplicitRegistryCreds in signer.go); validate accepts it.
+			// Empty struct routes to the keychain (see hasExplicitRegistryCreds
+			// in signer.go); validate accepts it.
 			name: "empty registry struct passes validation",
 			opts: Options{
-				Key:      validKey,
+				Options:  validSigstore,
 				Registry: &RegistryOptions{},
 			},
 		},
 		{
 			name: "registry with only username is rejected",
 			opts: Options{
-				Key:      validKey,
+				Options:  validSigstore,
 				Registry: &RegistryOptions{Username: "user"},
 			},
 			wantErr: "must be set together",
@@ -123,23 +76,15 @@ func TestOptions_validate(t *testing.T) {
 		{
 			name: "registry with only password is rejected",
 			opts: Options{
-				Key:      validKey,
+				Options:  validSigstore,
 				Registry: &RegistryOptions{Password: "pass"},
 			},
 			wantErr: "must be set together",
 		},
 		{
-			name: "valid key-mode options",
+			name: "valid key-mode with creds",
 			opts: Options{
-				Key:      validKey,
-				Registry: registry,
-			},
-		},
-		{
-			name: "valid keyless options with rekor",
-			opts: Options{
-				Fulcio:   &FulcioOptions{URL: "https://fulcio.example.com", IDToken: "tok"},
-				Rekor:    &RekorOptions{URL: "https://rekor.example.com"},
+				Options:  validSigstore,
 				Registry: registry,
 			},
 		},
@@ -156,33 +101,4 @@ func TestOptions_validate(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestOptions_buildSigningMaterial_KeyMode(t *testing.T) {
-	opts := &Options{Key: &KeyOptions{Signer: newTestECDSAKey(t), Hint: []byte("id")}}
-	kp, provider, certOpts, err := opts.buildSigningMaterial()
-	require.NoError(t, err)
-	require.NotNil(t, kp)
-	assert.Nil(t, provider)
-	assert.Nil(t, certOpts)
-}
-
-func TestOptions_buildSigningMaterial_FulcioMode(t *testing.T) {
-	opts := &Options{Fulcio: &FulcioOptions{URL: "https://fulcio.example.com", IDToken: "tok"}}
-	kp, provider, certOpts, err := opts.buildSigningMaterial()
-	require.NoError(t, err)
-	require.NotNil(t, kp)
-	require.NotNil(t, provider)
-	require.NotNil(t, certOpts)
-	assert.Equal(t, "tok", certOpts.IDToken)
-}
-
-func TestOptions_buildSigningMaterial_KeyModeUnsupportedCurve(t *testing.T) {
-	// P-224 not in detectAlgorithms → keypair adapter must reject.
-	priv, err := ecdsa.GenerateKey(elliptic.P224(), rand.Reader)
-	require.NoError(t, err)
-	opts := &Options{Key: &KeyOptions{Signer: priv, Hint: []byte("id")}}
-	_, _, _, err = opts.buildSigningMaterial()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "keypair adapter")
 }

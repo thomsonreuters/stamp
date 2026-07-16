@@ -16,7 +16,6 @@ package operations
 
 import (
 	"context"
-	"crypto"
 	"errors"
 	"fmt"
 	"os"
@@ -24,15 +23,12 @@ import (
 
 	"github.com/thomsonreuters/stamp/pkg/config"
 	"github.com/thomsonreuters/stamp/pkg/config/flags"
-	"github.com/thomsonreuters/stamp/pkg/crypto/keys"
 	pkgerrors "github.com/thomsonreuters/stamp/pkg/errors"
 	"github.com/thomsonreuters/stamp/pkg/logger"
 	"github.com/thomsonreuters/stamp/pkg/output"
-	"github.com/thomsonreuters/stamp/pkg/signing"
 	"github.com/thomsonreuters/stamp/pkg/signing/container"
-	"github.com/thomsonreuters/stamp/pkg/signing/fulcio"
+	"github.com/thomsonreuters/stamp/pkg/signing/sigstore"
 	"github.com/thomsonreuters/stamp/pkg/types"
-	"github.com/thomsonreuters/stamp/pkg/utils"
 	"github.com/thomsonreuters/stamp/pkg/validation"
 )
 
@@ -134,32 +130,11 @@ func (o *ContainerSignOp) Execute(ctx context.Context, imageRef string) error {
 }
 
 func (o *ContainerSignOp) buildSignOptions(ctx context.Context) (container.Options, error) {
-	opts := container.Options{}
-
-	switch o.config.GetString(flags.Signer) {
-	case types.SignerKey.String():
-		keyOpts, err := o.buildKeyOptions()
-		if err != nil {
-			return opts, err
-		}
-		opts.Key = keyOpts
-	case types.SignerFulcio.String():
-		token, err := o.resolveFulcioToken(ctx)
-		if err != nil {
-			return opts, err
-		}
-		opts.Fulcio = &container.FulcioOptions{
-			URL:     o.config.GetString(flags.FulcioURL),
-			IDToken: token,
-		}
+	sigOpts, err := sigstore.BuildOptionsFromConfig(ctx, o.config)
+	if err != nil {
+		return container.Options{}, err
 	}
-
-	if o.config.GetBool(flags.TransparencyEnable) {
-		opts.Rekor = &container.RekorOptions{
-			URL: o.config.GetString(flags.RekorURL),
-		}
-	}
-
+	opts := container.Options{Options: sigOpts}
 	if creds := registryCredsFromEnv(); creds != nil {
 		opts.Registry = creds
 	}
@@ -173,64 +148,6 @@ func registryCredsFromEnv() *container.RegistryOptions {
 		return nil
 	}
 	return &container.RegistryOptions{Username: user, Password: pass}
-}
-
-func (o *ContainerSignOp) buildKeyOptions() (*container.KeyOptions, error) {
-	keyPath := o.config.GetString(flags.PrivateKey)
-	password, err := o.resolveKeyPassword()
-	if err != nil {
-		return nil, pkgerrors.WrapWithContext(err, "container", "sign", "failed to resolve key password")
-	}
-	loaded, err := keys.LoadPrivateKeyFromFile(keyPath, password)
-	if err != nil {
-		return nil, pkgerrors.WrapWithContext(err, "container", "sign", "failed to load private key")
-	}
-	signer, ok := loaded.PrivateKey.(crypto.Signer)
-	if !ok {
-		return nil, pkgerrors.NewWithContext("container", "sign",
-			fmt.Sprintf("private key type %T does not implement crypto.Signer", loaded.PrivateKey))
-	}
-	fingerprint, err := keys.Fingerprint(loaded.PrivateKey)
-	if err != nil {
-		return nil, pkgerrors.WrapWithContext(err, "container", "sign", "failed to compute key fingerprint")
-	}
-	return &container.KeyOptions{
-		Signer: signer,
-		Hint:   []byte(fingerprint),
-	}, nil
-}
-
-// resolveKeyPassword precedence: --password > --password-file > --prompt.
-// Empty return means "no password" (unencrypted key). Flag mutual
-// exclusion is enforced upstream.
-func (o *ContainerSignOp) resolveKeyPassword() (string, error) {
-	if password := o.config.GetString(flags.CryptographyKeyPassword); password != "" {
-		return password, nil
-	}
-	if file := o.config.GetString(flags.CryptographyKeyPasswordFile); file != "" {
-		return utils.ReadPasswordFromFile(file)
-	}
-	if o.config.GetBool(flags.CryptographyKeyPasswordPrompt) {
-		return utils.PromptPassword("Enter password for private key")
-	}
-	return "", nil
-}
-
-func (o *ContainerSignOp) resolveFulcioToken(ctx context.Context) (string, error) {
-	cfg := signing.FulcioSignerConfig{
-		FulcioURL:        o.config.GetString(flags.FulcioURL),
-		Token:            o.config.GetString(flags.OIDCToken),
-		TokenPath:        o.config.GetString(flags.OIDCTokenFile),
-		UseSpire:         o.config.GetBool(flags.UseSpire),
-		SpireAgentSocket: o.config.GetString(flags.SPIRESocket),
-		UseGitHub:        o.config.GetBool(flags.UseGitHub),
-		Insecure:         o.config.GetBool(flags.Insecure),
-	}
-	token, err := fulcio.ResolveToken(ctx, cfg)
-	if err != nil {
-		return "", pkgerrors.WrapWithContext(err, "container", "sign", "failed to resolve OIDC token")
-	}
-	return token, nil
 }
 
 func (o *ContainerSignOp) writeBundle(ctx context.Context, res *container.Result) error {

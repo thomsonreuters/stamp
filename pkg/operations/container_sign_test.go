@@ -34,7 +34,7 @@ import (
 	"github.com/thomsonreuters/stamp/pkg/logger"
 	"github.com/thomsonreuters/stamp/pkg/output"
 	"github.com/thomsonreuters/stamp/pkg/signing/container"
-	"go.step.sm/crypto/pemutil"
+	"github.com/thomsonreuters/stamp/pkg/signing/sigstore"
 )
 
 // writeTempECDSAKey writes an unencrypted PKCS#8 P-256 private key to a
@@ -48,22 +48,6 @@ func writeTempECDSAKey(t *testing.T) string {
 	pemBytes := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der})
 	path := filepath.Join(t.TempDir(), "key.pem")
 	require.NoError(t, os.WriteFile(path, pemBytes, 0o600))
-	return path
-}
-
-// writeTempEncryptedECDSAKey writes a PKCS#8-encrypted P-256 private key
-// (AES-256-CBC + PBKDF2, matching what pkg/crypto/keys' decrypt path
-// accepts) to a temp file and returns its path.
-func writeTempEncryptedECDSAKey(t *testing.T, password string) string {
-	t.Helper()
-	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	require.NoError(t, err)
-	der, err := x509.MarshalPKCS8PrivateKey(priv)
-	require.NoError(t, err)
-	block, err := pemutil.EncryptPKCS8PrivateKey(rand.Reader, der, []byte(password), x509.PEMCipherAES256)
-	require.NoError(t, err)
-	path := filepath.Join(t.TempDir(), "encrypted.pem")
-	require.NoError(t, os.WriteFile(path, pem.EncodeToMemory(block), 0o600))
 	return path
 }
 
@@ -212,212 +196,6 @@ func TestContainerSignOp_Validate(t *testing.T) {
 	}
 }
 
-func TestContainerSignOp_buildKeyOptions_FileNotFound(t *testing.T) {
-	cfg := config.NewMockConfiguration()
-	cfg.On("GetString", flags.PrivateKey).Return("/nonexistent/key.pem")
-	cfg.On("GetString", flags.CryptographyKeyPassword).Return("")
-	cfg.On("GetString", flags.CryptographyKeyPasswordFile).Return("")
-	cfg.On("GetBool", flags.CryptographyKeyPasswordPrompt).Return(false)
-
-	op := NewContainerSignOp(cfg, logger.NewNoop(), output.NewNoop())
-	_, err := op.buildKeyOptions()
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to load private key")
-	cfg.AssertExpectations(t)
-}
-
-func TestContainerSignOp_buildKeyOptions_Success(t *testing.T) {
-	// Write an unencrypted PKCS#8 P-256 key to disk and verify the
-	// operation loads it and returns a populated KeyOptions.
-	keyPath := writeTempECDSAKey(t)
-
-	cfg := config.NewMockConfiguration()
-	cfg.On("GetString", flags.PrivateKey).Return(keyPath)
-	cfg.On("GetString", flags.CryptographyKeyPassword).Return("")
-	cfg.On("GetString", flags.CryptographyKeyPasswordFile).Return("")
-	cfg.On("GetBool", flags.CryptographyKeyPasswordPrompt).Return(false)
-
-	op := NewContainerSignOp(cfg, logger.NewNoop(), output.NewNoop())
-	got, err := op.buildKeyOptions()
-
-	require.NoError(t, err)
-	require.NotNil(t, got)
-	require.NotNil(t, got.Signer)
-	require.NotEmpty(t, got.Hint, "fingerprint hint must be populated")
-	cfg.AssertExpectations(t)
-}
-
-func TestContainerSignOp_buildKeyOptions_EncryptedKey_WithPassword(t *testing.T) {
-	const password = "correct-horse-battery-staple"
-	keyPath := writeTempEncryptedECDSAKey(t, password)
-
-	cfg := config.NewMockConfiguration()
-	cfg.On("GetString", flags.PrivateKey).Return(keyPath)
-	cfg.On("GetString", flags.CryptographyKeyPassword).Return(password)
-
-	op := NewContainerSignOp(cfg, logger.NewNoop(), output.NewNoop())
-	got, err := op.buildKeyOptions()
-
-	require.NoError(t, err)
-	require.NotNil(t, got.Signer)
-	require.NotEmpty(t, got.Hint)
-	cfg.AssertExpectations(t)
-}
-
-func TestContainerSignOp_buildKeyOptions_EncryptedKey_WithPasswordFile(t *testing.T) {
-	const password = "file-supplied-secret"
-	keyPath := writeTempEncryptedECDSAKey(t, password)
-	pwFile := filepath.Join(t.TempDir(), "pw.txt")
-	// Trailing whitespace is expected to be trimmed by ReadPasswordFromFile.
-	require.NoError(t, os.WriteFile(pwFile, []byte(password+"\n"), 0o600))
-
-	cfg := config.NewMockConfiguration()
-	cfg.On("GetString", flags.PrivateKey).Return(keyPath)
-	cfg.On("GetString", flags.CryptographyKeyPassword).Return("")
-	cfg.On("GetString", flags.CryptographyKeyPasswordFile).Return(pwFile)
-
-	op := NewContainerSignOp(cfg, logger.NewNoop(), output.NewNoop())
-	got, err := op.buildKeyOptions()
-
-	require.NoError(t, err)
-	require.NotNil(t, got.Signer)
-	cfg.AssertExpectations(t)
-}
-
-func TestContainerSignOp_buildKeyOptions_EncryptedKey_WrongPassword(t *testing.T) {
-	keyPath := writeTempEncryptedECDSAKey(t, "real-password")
-
-	cfg := config.NewMockConfiguration()
-	cfg.On("GetString", flags.PrivateKey).Return(keyPath)
-	cfg.On("GetString", flags.CryptographyKeyPassword).Return("wrong-password")
-
-	op := NewContainerSignOp(cfg, logger.NewNoop(), output.NewNoop())
-	_, err := op.buildKeyOptions()
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to load private key",
-		"decrypt failure must surface as a load error, not e.g. a fingerprint error")
-	cfg.AssertExpectations(t)
-}
-
-func TestContainerSignOp_buildKeyOptions_EncryptedKey_NoPassword(t *testing.T) {
-	keyPath := writeTempEncryptedECDSAKey(t, "some-password")
-
-	cfg := config.NewMockConfiguration()
-	cfg.On("GetString", flags.PrivateKey).Return(keyPath)
-	cfg.On("GetString", flags.CryptographyKeyPassword).Return("")
-	cfg.On("GetString", flags.CryptographyKeyPasswordFile).Return("")
-	cfg.On("GetBool", flags.CryptographyKeyPasswordPrompt).Return(false)
-
-	op := NewContainerSignOp(cfg, logger.NewNoop(), output.NewNoop())
-	_, err := op.buildKeyOptions()
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to load private key")
-	cfg.AssertExpectations(t)
-}
-
-func TestContainerSignOp_resolveKeyPassword_Precedence(t *testing.T) {
-	// --password wins over --password-file wins over --prompt. A prompt
-	// call would fail in `go test` (no TTY), so an incorrect precedence
-	// that falls through to prompt would surface as an error — the
-	// direct-and-file cases proving they never reach prompt.
-	pwFile := filepath.Join(t.TempDir(), "pw.txt")
-	require.NoError(t, os.WriteFile(pwFile, []byte("from-file"), 0o600))
-
-	tests := []struct {
-		name       string
-		direct     string
-		file       string
-		prompt     bool
-		want       string
-		wantErrSub string
-	}{
-		{
-			name:   "direct wins over file and prompt",
-			direct: "direct-value",
-			file:   pwFile,
-			prompt: true,
-			want:   "direct-value",
-		},
-		{
-			name: "file used when direct is empty",
-			file: pwFile,
-			want: "from-file",
-		},
-		{
-			name: "empty when nothing is set (unencrypted key)",
-			want: "",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cfg := config.NewMockConfiguration()
-			cfg.On("GetString", flags.CryptographyKeyPassword).Return(tt.direct)
-			// Later branches only run if earlier ones return empty; use
-			// Maybe so unused expectations don't fail the test.
-			cfg.On("GetString", flags.CryptographyKeyPasswordFile).Return(tt.file).Maybe()
-			cfg.On("GetBool", flags.CryptographyKeyPasswordPrompt).Return(tt.prompt).Maybe()
-
-			op := NewContainerSignOp(cfg, logger.NewNoop(), output.NewNoop())
-			got, err := op.resolveKeyPassword()
-
-			if tt.wantErrSub != "" {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.wantErrSub)
-				return
-			}
-			require.NoError(t, err)
-			assert.Equal(t, tt.want, got)
-		})
-	}
-}
-
-func TestContainerSignOp_resolveFulcioToken_NoTokenSource(t *testing.T) {
-	// Clear ambient GitHub Actions env vars so ResolveToken's
-	// best-effort auto-detect step reaches the "no source" error.
-	t.Setenv("GITHUB_ACTIONS", "")
-	t.Setenv("ACTIONS_ID_TOKEN_REQUEST_URL", "")
-	t.Setenv("ACTIONS_ID_TOKEN_REQUEST_TOKEN", "")
-	t.Setenv("SPIFFE_ENDPOINT_SOCKET", "")
-
-	cfg := config.NewMockConfiguration()
-	cfg.On("GetString", flags.FulcioURL).Return("https://fulcio.example.com")
-	cfg.On("GetString", flags.OIDCToken).Return("")
-	cfg.On("GetString", flags.OIDCTokenFile).Return("")
-	cfg.On("GetBool", flags.UseSpire).Return(false)
-	cfg.On("GetString", flags.SPIRESocket).Return("")
-	cfg.On("GetBool", flags.UseGitHub).Return(false)
-	cfg.On("GetBool", flags.Insecure).Return(false)
-
-	op := NewContainerSignOp(cfg, logger.NewNoop(), output.NewNoop())
-	_, err := op.resolveFulcioToken(context.Background())
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "OIDC token")
-	cfg.AssertExpectations(t)
-}
-
-func TestContainerSignOp_resolveFulcioToken_DirectToken(t *testing.T) {
-	cfg := config.NewMockConfiguration()
-	cfg.On("GetString", flags.FulcioURL).Return("https://fulcio.example.com")
-	cfg.On("GetString", flags.OIDCToken).Return("my-oidc-token")
-	cfg.On("GetString", flags.OIDCTokenFile).Return("")
-	cfg.On("GetBool", flags.UseSpire).Return(false)
-	cfg.On("GetString", flags.SPIRESocket).Return("")
-	cfg.On("GetBool", flags.UseGitHub).Return(false)
-	cfg.On("GetBool", flags.Insecure).Return(false)
-
-	op := NewContainerSignOp(cfg, logger.NewNoop(), output.NewNoop())
-	tok, err := op.resolveFulcioToken(context.Background())
-
-	require.NoError(t, err)
-	assert.Equal(t, "my-oidc-token", tok)
-	cfg.AssertExpectations(t)
-}
-
 func TestContainerSignOp_buildSignOptions_KeyMode(t *testing.T) {
 	t.Setenv(envRegistryUsername, "u")
 	t.Setenv(envRegistryPassword, "p")
@@ -527,7 +305,7 @@ func TestContainerSignOp_writeBundle_File(t *testing.T) {
 
 	op := NewContainerSignOp(cfg, logger.NewNoop(), output.NewNoop())
 	require.NoError(t, op.writeBundle(context.Background(), &container.Result{
-		BundleJSON: []byte(`{"ok":true}`),
+		Result: sigstore.Result{BundleJSON: []byte(`{"ok":true}`)},
 	}))
 
 	got, err := os.ReadFile(dest)
@@ -552,7 +330,7 @@ func TestContainerSignOp_writeBundle_RefusesToOverwriteWithoutFlag(t *testing.T)
 
 	op := NewContainerSignOp(cfg, logger.NewNoop(), output.NewNoop())
 	err := op.writeBundle(context.Background(), &container.Result{
-		BundleJSON: []byte(`{"new":true}`),
+		Result: sigstore.Result{BundleJSON: []byte(`{"new":true}`)},
 	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "already exists")
@@ -572,7 +350,7 @@ func TestContainerSignOp_writeBundle_OverwritesWithFlag(t *testing.T) {
 
 	op := NewContainerSignOp(cfg, logger.NewNoop(), output.NewNoop())
 	require.NoError(t, op.writeBundle(context.Background(), &container.Result{
-		BundleJSON: []byte(`{"new":true}`),
+		Result: sigstore.Result{BundleJSON: []byte(`{"new":true}`)},
 	}))
 
 	got, err := os.ReadFile(dest)
@@ -597,7 +375,7 @@ func TestContainerSignOp_writeBundle_Stdout(t *testing.T) {
 
 	op := NewContainerSignOp(cfg, logger.NewNoop(), output.NewNoop())
 	require.NoError(t, op.writeBundle(context.Background(), &container.Result{
-		BundleJSON: []byte(`{"bundle":true}`),
+		Result: sigstore.Result{BundleJSON: []byte(`{"bundle":true}`)},
 	}))
 	require.NoError(t, f.Close())
 
@@ -613,7 +391,7 @@ func TestContainerSignOp_writeBundle_FileError(t *testing.T) {
 	cfg.On("GetBool", flags.ContainerSignOverwrite).Return(false).Maybe()
 
 	op := NewContainerSignOp(cfg, logger.NewNoop(), output.NewNoop())
-	err := op.writeBundle(context.Background(), &container.Result{BundleJSON: []byte("x")})
+	err := op.writeBundle(context.Background(), &container.Result{Result: sigstore.Result{BundleJSON: []byte("x")}})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to open bundle for writing")
 }

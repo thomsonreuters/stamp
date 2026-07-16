@@ -19,32 +19,31 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
-	sigstorebundle "github.com/sigstore/sigstore-go/pkg/bundle"
-	"github.com/sigstore/sigstore-go/pkg/sign"
 	"github.com/thomsonreuters/stamp/pkg/intoto"
 	"github.com/thomsonreuters/stamp/pkg/logger"
-	"google.golang.org/protobuf/encoding/protojson"
+	"github.com/thomsonreuters/stamp/pkg/signing/sigstore"
 )
 
 // CosignPredicateType is cosign's predicate URI for simple container
 // signatures (no semantic payload).
 const CosignPredicateType = "https://sigstore.dev/cosign/sign/v1"
 
-const payloadTypeInToto = "application/vnd.in-toto+json"
-
 // Signer is safe to reuse across many Sign calls; registry credentials
 // are supplied per-call via Options.Registry.
 type Signer struct {
-	logger logger.Logger
+	sigstore *sigstore.Signer
+	logger   logger.Logger
 }
 
 func NewSigner(log logger.Logger) *Signer {
-	return &Signer{logger: log}
+	return &Signer{
+		sigstore: sigstore.NewSigner(log),
+		logger:   log,
+	}
 }
 
 func (s *Signer) Sign(ctx context.Context, imageRef string, opts Options) (*Result, error) {
@@ -82,24 +81,6 @@ func (s *Signer) Sign(ctx context.Context, imageRef string, opts Options) (*Resu
 		return nil, err
 	}
 
-	keypair, certProvider, certOpts, err := opts.buildSigningMaterial()
-	if err != nil {
-		return nil, err
-	}
-
-	bundleOpts := sign.BundleOptions{
-		Context:                    ctx,
-		CertificateProvider:        certProvider,
-		CertificateProviderOptions: certOpts,
-	}
-	if opts.Rekor != nil {
-		bundleOpts.TransparencyLogs = []sign.Transparency{
-			sign.NewRekor(&sign.RekorOptions{
-				BaseURL: opts.Rekor.URL,
-			}),
-		}
-	}
-
 	s.logger.InfoContext(ctx, "signing container",
 		"image", imageRef,
 		"digest", digest.String(),
@@ -107,51 +88,24 @@ func (s *Signer) Sign(ctx context.Context, imageRef string, opts Options) (*Resu
 		"rekor", opts.Rekor != nil,
 	)
 
-	b, err := sign.Bundle(&sign.DSSEData{Data: payload, PayloadType: payloadTypeInToto}, keypair, bundleOpts)
+	sigRes, err := s.sigstore.SignBundle(ctx, payload, intoto.PayloadType, opts.Options)
 	if err != nil {
-		return nil, wrapSignBundleError(err, opts.Rekor != nil)
-	}
-	// Round-trip parse to catch malformed bundles before we hand them out.
-	if _, verr := sigstorebundle.NewBundle(b); verr != nil {
-		return nil, fmt.Errorf("container sign: bundle validation: %w", verr)
-	}
-
-	data, err := protojson.MarshalOptions{Indent: "  "}.Marshal(b)
-	if err != nil {
-		return nil, fmt.Errorf("container sign: marshal bundle: %w", err)
+		return nil, fmt.Errorf("container sign: %w", err)
 	}
 
 	return &Result{
-		Bundle:     b,
-		BundleJSON: data,
-		Digest:     digest.String(),
+		Result: *sigRes,
+		Digest: digest.String(),
 	}, nil
 }
 
 // hasExplicitRegistryCreds reports whether the caller provided a
-// populated Registry (both fields non-empty). Registry.validate accepts a
+// populated Registry (both fields non-empty). Options.validate accepts a
 // nil pointer OR an empty struct as "no creds provided", so both must
 // route to the keychain fallback; only a truly populated struct sends
 // Basic Auth.
 func hasExplicitRegistryCreds(r *RegistryOptions) bool {
 	return r != nil && r.Username != "" && r.Password != ""
-}
-
-// wrapSignBundleError translates sigstore-go's error into something
-// actionable. sigstore-go's Rekor client is generated from OpenAPI and
-// only knows how to unmarshal JSON responses; when a Rekor gateway
-// returns text/plain (e.g. a policy-enforcing authorizer denying the
-// upload), the client fails with a go-openapi TextConsumer message
-// that reveals nothing about the real cause.
-func wrapSignBundleError(err error, rekorEnabled bool) error {
-	if rekorEnabled && strings.Contains(err.Error(), "TextConsumer") {
-		return fmt.Errorf(
-			"container sign: Rekor rejected the upload with a non-JSON response; "+
-				"the server may enforce a policy this signer does not satisfy "+
-				"(e.g. keyless-only). Try --signer fulcio, or --rekor=false to "+
-				"skip Rekor. Underlying error: %w", err)
-	}
-	return fmt.Errorf("container sign: sign.Bundle: %w", err)
 }
 
 // buildStatementPayload emits a cosign-shaped in-toto Statement: empty

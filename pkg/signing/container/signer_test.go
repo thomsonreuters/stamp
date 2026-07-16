@@ -17,7 +17,6 @@ package container
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"testing"
 
 	"github.com/google/go-containerregistry/pkg/name"
@@ -25,12 +24,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/thomsonreuters/stamp/pkg/intoto"
 	"github.com/thomsonreuters/stamp/pkg/logger"
+	"github.com/thomsonreuters/stamp/pkg/signing/sigstore"
 )
 
 func TestNewSigner(t *testing.T) {
 	s := NewSigner(logger.NewNoop())
 	require.NotNil(t, s)
 	assert.NotNil(t, s.logger)
+	assert.NotNil(t, s.sigstore)
 }
 
 func TestSigner_Sign_InvalidOptions(t *testing.T) {
@@ -43,7 +44,9 @@ func TestSigner_Sign_InvalidOptions(t *testing.T) {
 func TestSigner_Sign_InvalidImageReference(t *testing.T) {
 	s := NewSigner(logger.NewNoop())
 	opts := Options{
-		Key:      &KeyOptions{Signer: newTestECDSAKey(t), Hint: []byte("id")},
+		Options: sigstore.Options{
+			Key: &sigstore.KeyOptions{Signer: newTestECDSAKey(t), Hint: []byte("id")},
+		},
 		Registry: &RegistryOptions{Username: "user", Password: "pass"},
 	}
 	_, err := s.Sign(context.Background(), "://not a ref", opts)
@@ -66,44 +69,6 @@ func TestHasExplicitRegistryCreds(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.Equal(t, tt.want, hasExplicitRegistryCreds(tt.in))
-		})
-	}
-}
-
-func TestWrapSignBundleError(t *testing.T) {
-	tests := []struct {
-		name        string
-		underlying  error
-		rekor       bool
-		wantContain string
-	}{
-		{
-			name: "rekor TextConsumer failure gets a policy hint",
-			underlying: errors.New(
-				`&{0 } (*models.Error) is not supported by the TextConsumer, can be resolved by supporting TextUnmarshaler interface`,
-			),
-			rekor:       true,
-			wantContain: "Rekor rejected the upload with a non-JSON response",
-		},
-		{
-			name:        "rekor generic failure passes through",
-			underlying:  errors.New("connection refused"),
-			rekor:       true,
-			wantContain: "container sign: sign.Bundle",
-		},
-		{
-			name:        "TextConsumer without rekor enabled is generic",
-			underlying:  errors.New(`(*models.Error) is not supported by the TextConsumer`),
-			rekor:       false,
-			wantContain: "container sign: sign.Bundle",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := wrapSignBundleError(tt.underlying, tt.rekor)
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), tt.wantContain)
-			assert.ErrorIs(t, err, tt.underlying, "wrapped error must expose the underlying via errors.Is/Unwrap")
 		})
 	}
 }
