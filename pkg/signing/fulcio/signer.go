@@ -101,7 +101,7 @@ func (s *Signer) Validate(base signing.SignerConfig) error {
 func (s *Signer) PreSign(ctx context.Context, config signing.SignerConfig) error {
 	fulcioConfig := config.Fulcio
 
-	token, err := resolveToken(ctx, *fulcioConfig)
+	token, err := ResolveToken(ctx, *fulcioConfig)
 	if err != nil {
 		return pkgerrors.WrapWithContext(err, "fulcio", "pre-sign", "failed to resolve token")
 	}

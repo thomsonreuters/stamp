@@ -303,3 +303,17 @@ const (
 	// UploadPublicKey specifies path to public key file.
 	UploadPublicKey = "commands.upload.public_key"
 )
+
+// ============================================================================
+// CONTAINER SIGN COMMAND CONFIGURATION
+// ============================================================================
+
+const (
+	// ContainerSignOutput specifies path for the sigstore Bundle v0.3 JSON
+	// output. Empty means write to stdout.
+	ContainerSignOutput = "commands.container.sign.output"
+
+	// ContainerSignOverwrite allows overwriting an existing bundle file
+	// at ContainerSignOutput. Ignored when writing to stdout.
+	ContainerSignOverwrite = "commands.container.sign.overwrite"
+)

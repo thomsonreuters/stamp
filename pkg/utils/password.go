@@ -37,6 +37,34 @@ var (
 	ErrPasswordFileFailed = errors.New("failed to read password file")
 )
 
+type KeyPasswordConfig struct {
+	Password      string
+	PasswordFile  string
+	PromptEnabled bool
+	// PromptText overrides the default prompt string. Optional.
+	PromptText string
+}
+
+// ResolveKeyPassword returns the private-key password using the standard
+// precedence: --password > --password-file > --prompt. An empty return
+// with no error means "no password" (unencrypted key).
+func ResolveKeyPassword(cfg KeyPasswordConfig) (string, error) {
+	if cfg.Password != "" {
+		return cfg.Password, nil
+	}
+	if cfg.PasswordFile != "" {
+		return ReadPasswordFromFile(cfg.PasswordFile)
+	}
+	if cfg.PromptEnabled {
+		prompt := cfg.PromptText
+		if prompt == "" {
+			prompt = "Enter password for private key"
+		}
+		return PromptPassword(prompt)
+	}
+	return "", nil
+}
+
 // ReadPasswordFromFile reads a password from a file and trims whitespace.
 func ReadPasswordFromFile(path string) (string, error) {
 	data, err := os.ReadFile(path)

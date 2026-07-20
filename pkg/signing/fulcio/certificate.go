@@ -29,13 +29,13 @@ import (
 	"github.com/thomsonreuters/stamp/pkg/signing"
 )
 
-// resolveToken resolves token using precedence hierarchy:
-// 1. Direct token from config.Token (--oidc-token)
-// 2. Token from file (--oidc-token-file)
-// 3. SPIRE workload API (--spire or --socket)
-// 4. GitHub Actions (--github)
-// 5. Auto-detection: GitHub environment or default SPIRE socket (last resort).
-func resolveToken(ctx context.Context, config signing.FulcioSignerConfig) (string, error) {
+// ResolveToken resolves an OIDC token using the standard precedence:
+//  1. Direct token from config.Token (--oidc-token)
+//  2. Token from file (--oidc-token-file)
+//  3. SPIRE workload API (--spire or --socket)
+//  4. GitHub Actions (--github)
+//  5. Auto-detection: GitHub environment or default SPIRE socket (last resort).
+func ResolveToken(ctx context.Context, config signing.FulcioSignerConfig) (string, error) {
 	if config.Token != "" {
 		return config.Token, nil
 	}
