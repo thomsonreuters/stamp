@@ -102,6 +102,64 @@ func TestOptions_Validate(t *testing.T) {
 				Rekor:  &RekorOptions{URL: "https://rekor.example.com"},
 			},
 		},
+		// --- TSA validation (added with C1 Rekor v2 support) ---
+		{
+			name: "TSA set with empty URL, no Rekor",
+			opts: Options{
+				Key: validKey,
+				TSA: &TSAOptions{URL: ""},
+			},
+			wantErr: "TSA.URL is required when TSA is set",
+		},
+		{
+			name: "valid TSA-only, no Rekor",
+			opts: Options{
+				Key: validKey,
+				TSA: &TSAOptions{URL: "https://timestamp.example.com"},
+			},
+		},
+		{
+			name: "rekor v1 with empty TSA URL",
+			opts: Options{
+				Key:   validKey,
+				Rekor: &RekorOptions{URL: "https://rekor.example.com", Version: 1},
+				TSA:   &TSAOptions{URL: ""},
+			},
+			wantErr: "TSA.URL is required when TSA is set",
+		},
+		{
+			name: "rekor v1 with valid TSA",
+			opts: Options{
+				Key:   validKey,
+				Rekor: &RekorOptions{URL: "https://rekor.example.com", Version: 1},
+				TSA:   &TSAOptions{URL: "https://timestamp.example.com"},
+			},
+		},
+		{
+			name: "rekor v2 without TSA",
+			opts: Options{
+				Key:   validKey,
+				Rekor: &RekorOptions{URL: "https://rekor.example.com", Version: 2},
+			},
+			wantErr: "Rekor v2 requires TSA.URL to be set",
+		},
+		{
+			name: "rekor v2 with empty TSA URL (v2 rule takes precedence)",
+			opts: Options{
+				Key:   validKey,
+				Rekor: &RekorOptions{URL: "https://rekor.example.com", Version: 2},
+				TSA:   &TSAOptions{URL: ""},
+			},
+			wantErr: "Rekor v2 requires TSA.URL to be set",
+		},
+		{
+			name: "valid rekor v2 with TSA",
+			opts: Options{
+				Key:   validKey,
+				Rekor: &RekorOptions{URL: "https://rekor.example.com", Version: 2},
+				TSA:   &TSAOptions{URL: "https://timestamp.example.com"},
+			},
+		},
 	}
 
 	for _, tt := range tests {
