@@ -48,7 +48,7 @@ var RekorServerFlags = plugincobra.FlagGroup{
 }
 
 // RekorVersionFlags controls which Rekor API version stamp speaks. Default
-// 1 (classic Rekor). Set to 2 for rekor-tiles. TSA is required for v2.
+// 1 (classic Rekor). Set to 2 for rekor-tiles.
 var RekorVersionFlags = plugincobra.FlagGroup{
 	"rekor-version": {
 		Name:       "rekor-version",
