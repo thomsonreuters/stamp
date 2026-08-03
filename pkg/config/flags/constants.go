@@ -166,7 +166,6 @@ const (
 	RekorTemporalPolicy = "pipeline.rekor.temporal_policy"
 
 	// RekorVersion specifies the Rekor API version to speak: 1 (default) or 2.
-	// Rekor v2 (rekor-tiles) requires a TSA; sigstore-go enforces this.
 	RekorVersion = "pipeline.rekor.version"
 )
 
