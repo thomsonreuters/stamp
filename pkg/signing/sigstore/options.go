@@ -88,8 +88,6 @@ func (o *Options) Validate() error {
 	if o.Rekor != nil && o.Rekor.URL == "" {
 		return errors.New("sigstore sign: Rekor.URL is required")
 	}
-	// Order matters: check the v2-specific rule first so its more informative
-	// message wins when both this rule and the general "TSA empty" rule apply.
 	if o.Rekor != nil && o.Rekor.Version == 2 && (o.TSA == nil || o.TSA.URL == "") {
 		return errors.New("sigstore sign: Rekor v2 requires TSA.URL to be set")
 	}
