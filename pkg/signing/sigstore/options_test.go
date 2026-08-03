@@ -102,7 +102,7 @@ func TestOptions_Validate(t *testing.T) {
 				Rekor:  &RekorOptions{URL: "https://rekor.example.com"},
 			},
 		},
-		// --- TSA validation (added with C1 Rekor v2 support) ---
+		// --- TSA validation ---
 		{
 			name: "TSA set with empty URL, no Rekor",
 			opts: Options{
