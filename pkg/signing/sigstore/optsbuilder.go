@@ -52,7 +52,13 @@ func BuildOptionsFromConfig(ctx context.Context, cfg config.ConfigurationIface) 
 	}
 
 	if cfg.GetBool(flags.TransparencyEnable) {
-		opts.Rekor = &RekorOptions{URL: cfg.GetString(flags.RekorURL)}
+		opts.Rekor = &RekorOptions{
+			URL:     cfg.GetString(flags.RekorURL),
+			Version: uint32(cfg.GetInt(flags.RekorVersion)),
+		}
+	}
+	if tsaURL := cfg.GetString(flags.TSAURL); tsaURL != "" {
+		opts.TSA = &TSAOptions{URL: tsaURL}
 	}
 	return opts, nil
 }

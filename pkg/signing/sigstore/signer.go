@@ -62,6 +62,14 @@ func (s *Signer) SignBundle(ctx context.Context, payload []byte, payloadType str
 		bundleOpts.TransparencyLogs = []sign.Transparency{
 			sign.NewRekor(&sign.RekorOptions{
 				BaseURL: opts.Rekor.URL,
+				Version: opts.Rekor.Version,
+			}),
+		}
+	}
+	if opts.TSA != nil {
+		bundleOpts.TimestampAuthorities = []*sign.TimestampAuthority{
+			sign.NewTimestampAuthority(&sign.TimestampAuthorityOptions{
+				URL: opts.TSA.URL,
 			}),
 		}
 	}
@@ -69,6 +77,8 @@ func (s *Signer) SignBundle(ctx context.Context, payload []byte, payloadType str
 	s.logger.InfoContext(ctx, "signing bundle",
 		"keyless", opts.Fulcio != nil,
 		"rekor", opts.Rekor != nil,
+		"rekor_version", rekorVersionForLog(opts.Rekor),
+		"tsa", opts.TSA != nil,
 		"payload_type", payloadType,
 	)
 
@@ -90,6 +100,13 @@ func (s *Signer) SignBundle(ctx context.Context, payload []byte, payloadType str
 		Bundle:     b,
 		BundleJSON: data,
 	}, nil
+}
+
+func rekorVersionForLog(r *RekorOptions) uint32 {
+	if r == nil {
+		return 0
+	}
+	return r.Version
 }
 
 // wrapSignBundleError translates sigstore-go's cryptic TextConsumer

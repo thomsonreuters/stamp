@@ -24,11 +24,13 @@ import (
 )
 
 // Options for Signer.SignBundle. Exactly one of Key or Fulcio must be set.
-// Rekor is optional; nil skips transparency-log upload.
+// Rekor is optional; nil skips transparency-log upload. TSA is required
+// when Rekor.Version == 2.
 type Options struct {
 	Key    *KeyOptions
 	Fulcio *FulcioOptions
 	Rekor  *RekorOptions
+	TSA    *TSAOptions
 }
 
 type KeyOptions struct {
@@ -45,6 +47,14 @@ type FulcioOptions struct {
 }
 
 type RekorOptions struct {
+	URL string
+	// Version selects the Rekor API. 0/1 = classic Rekor, 2 = rekor-tiles.
+	Version uint32
+}
+
+// TSAOptions configures an RFC 3161 Timestamp Authority. Required when
+// Rekor v2 is in use because v2 entries have integrated_time = 0.
+type TSAOptions struct {
 	URL string
 }
 
@@ -76,6 +86,12 @@ func (o *Options) Validate() error {
 	}
 	if o.Rekor != nil && o.Rekor.URL == "" {
 		return errors.New("sigstore sign: Rekor.URL is required")
+	}
+	if o.Rekor != nil && o.Rekor.Version == 2 && (o.TSA == nil || o.TSA.URL == "") {
+		return errors.New("sigstore sign: Rekor v2 requires TSA.URL to be set")
+	}
+	if o.TSA != nil && o.TSA.URL == "" {
+		return errors.New("sigstore sign: TSA.URL is required when TSA is set")
 	}
 	return nil
 }

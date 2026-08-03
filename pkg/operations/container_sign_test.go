@@ -209,6 +209,7 @@ func TestContainerSignOp_buildSignOptions_KeyMode(t *testing.T) {
 	cfg.On("GetString", flags.CryptographyKeyPasswordFile).Return("")
 	cfg.On("GetBool", flags.CryptographyKeyPasswordPrompt).Return(false)
 	cfg.On("GetBool", flags.TransparencyEnable).Return(false).Maybe()
+	cfg.On("GetString", flags.TSAURL).Return("").Maybe()
 
 	op := NewContainerSignOp(cfg, logger.NewNoop(), output.NewNoop())
 	opts, err := op.buildSignOptions(context.Background())
@@ -236,6 +237,8 @@ func TestContainerSignOp_buildSignOptions_FulcioMode(t *testing.T) {
 	cfg.On("GetBool", flags.Insecure).Return(false)
 	cfg.On("GetBool", flags.TransparencyEnable).Return(true)
 	cfg.On("GetString", flags.RekorURL).Return("https://rekor.example.com")
+	cfg.On("GetInt", flags.RekorVersion).Return(1).Maybe()
+	cfg.On("GetString", flags.TSAURL).Return("").Maybe()
 
 	op := NewContainerSignOp(cfg, logger.NewNoop(), output.NewNoop())
 	opts, err := op.buildSignOptions(context.Background())
@@ -267,6 +270,7 @@ func TestContainerSignOp_buildSignOptions_NoRegistryEnv(t *testing.T) {
 	cfg.On("GetBool", flags.UseGitHub).Return(false)
 	cfg.On("GetBool", flags.Insecure).Return(false)
 	cfg.On("GetBool", flags.TransparencyEnable).Return(false)
+	cfg.On("GetString", flags.TSAURL).Return("").Maybe()
 
 	op := NewContainerSignOp(cfg, logger.NewNoop(), output.NewNoop())
 	opts, err := op.buildSignOptions(context.Background())

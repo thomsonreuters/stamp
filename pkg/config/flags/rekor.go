@@ -47,6 +47,22 @@ var RekorServerFlags = plugincobra.FlagGroup{
 	},
 }
 
+// RekorVersionFlags controls which Rekor API version stamp speaks. Default
+// 1 (classic Rekor). Set to 2 for rekor-tiles.
+var RekorVersionFlags = plugincobra.FlagGroup{
+	"rekor-version": {
+		Name:       "rekor-version",
+		ConfigPath: RekorVersion,
+		Type:       plugincobra.IntFlag,
+		Default:    1,
+		Help:       "Rekor API version (1 for classic Rekor, 2 for rekor-tiles)",
+		Constraints: &plugincobra.FlagConstraints{
+			MinValue: &[]int{1}[0],
+			MaxValue: &[]int{2}[0],
+		},
+	},
+}
+
 // RekorUploadFlags contains Rekor upload target configuration.
 var RekorUploadFlags = plugincobra.FlagGroup{
 	"rekor-upload": {

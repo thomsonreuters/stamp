@@ -164,6 +164,19 @@ const (
 
 	// RekorTemporalPolicy specifies temporal validation policy: "strict" (fail), "warn", "ignore".
 	RekorTemporalPolicy = "pipeline.rekor.temporal_policy"
+
+	// RekorVersion specifies the Rekor API version to speak: 1 (default) or 2.
+	RekorVersion = "pipeline.rekor.version"
+)
+
+// ============================================================================
+// TIMESTAMP AUTHORITY (TSA) CONFIGURATION
+// ============================================================================
+
+const (
+	// TSAURL specifies the RFC 3161 Timestamp Authority server URL. Required
+	// when using Rekor v2 because integrated_time is always 0 in v2 entries.
+	TSAURL = "pipeline.tsa.url"
 )
 
 // ============================================================================
