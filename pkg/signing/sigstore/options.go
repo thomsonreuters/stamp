@@ -49,7 +49,6 @@ type FulcioOptions struct {
 type RekorOptions struct {
 	URL string
 	// Version selects the Rekor API. 0/1 = classic Rekor, 2 = rekor-tiles.
-	// sigstore-go defaults to 1 when unset; v2 additionally requires a TSA.
 	Version uint32
 }
 
