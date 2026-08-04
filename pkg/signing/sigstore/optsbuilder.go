@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"github.com/sigstore/sigstore-go/pkg/root"
-
 	"github.com/thomsonreuters/stamp/pkg/config"
 	"github.com/thomsonreuters/stamp/pkg/config/flags"
 	"github.com/thomsonreuters/stamp/pkg/crypto/keys"

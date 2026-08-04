@@ -18,6 +18,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -27,7 +28,6 @@ import (
 	"github.com/sigstore/sigstore-go/pkg/root"
 	sgtuf "github.com/sigstore/sigstore-go/pkg/tuf"
 	"github.com/theupdateframework/go-tuf/v2/metadata/fetcher"
-
 	"github.com/thomsonreuters/stamp/pkg/logger"
 )
 
@@ -85,13 +85,13 @@ func resolveTUFRootBytes(ctx context.Context, opts Options, httpClient *http.Cli
 	}
 	if opts.TUFRootPath == "" {
 		if opts.TUFRootChecksum != "" {
-			return nil, fmt.Errorf("trust: --tuf-root-checksum has no effect without --tuf-root")
+			return nil, errors.New("trust: --tuf-root-checksum has no effect without --tuf-root")
 		}
 		return nil, nil
 	}
 	if isHTTPURL(opts.TUFRootPath) {
 		if strings.HasPrefix(opts.TUFRootPath, "http://") && !opts.Insecure {
-			return nil, fmt.Errorf("trust: --tuf-root=http:// requires --insecure (no transport integrity); use https or a filesystem path")
+			return nil, errors.New("trust: --tuf-root=http:// requires --insecure (no transport integrity); use https or a filesystem path")
 		}
 		return fetchRootFromURL(ctx, opts.TUFRootPath, opts.TUFRootChecksum, httpClient, log)
 	}
@@ -120,7 +120,7 @@ func fetchRootFromURL(ctx context.Context, url, checksum string, httpClient *htt
 	if err != nil {
 		return nil, fmt.Errorf("trust: fetch tuf root from %q: %w", url, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("trust: fetch tuf root from %q: unexpected status %d", url, resp.StatusCode)

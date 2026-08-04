@@ -22,7 +22,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
 	"github.com/thomsonreuters/stamp/pkg/logger"
 )
 
@@ -35,9 +34,11 @@ func TestLoggingTransport_RoundTrip(t *testing.T) {
 	defer ts.Close()
 
 	client := &http.Client{Transport: &LoggingTransport{Log: logger.NewNoop()}}
-	resp, err := client.Get(ts.URL)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, ts.URL, nil)
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
@@ -50,7 +51,10 @@ func TestLoggingTransport_TransportError(t *testing.T) {
 	require.NoError(t, err)
 
 	tr := &LoggingTransport{Log: logger.NewNoop()}
-	_, err = tr.RoundTrip(req)
+	resp, err := tr.RoundTrip(req)
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
 	require.Error(t, err)
 }
 

@@ -16,14 +16,12 @@ package trust
 
 import (
 	"context"
-	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
 	"github.com/thomsonreuters/stamp/pkg/logger"
 )
 
@@ -101,7 +99,7 @@ func TestNewSigningConfigResolver_Dispatch(t *testing.T) {
 			r, err := NewSigningConfigResolver(tt.opts, logger.NewNoop())
 			if tt.wantErr != nil {
 				require.Error(t, err)
-				assert.True(t, errors.Is(err, tt.wantErr), "expected %v, got %v", tt.wantErr, err)
+				assert.ErrorIs(t, err, tt.wantErr, "expected %v, got %v", tt.wantErr, err)
 				return
 			}
 			require.NoError(t, err)

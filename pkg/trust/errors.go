@@ -23,5 +23,7 @@ var (
 
 	ErrSigningConfigSourceConflict = errors.New("trust: --signing-config and --use-signing-config are mutually exclusive")
 	ErrSigningConfigNeedsTUF       = errors.New("trust: --use-signing-config requires --tuf-url (or the embedded public sigstore TUF default)")
-	ErrSigningConfigURLConflict    = errors.New("trust: explicit --fulcio-url/--rekor-url/--tsa-url cannot be combined with --use-signing-config or --signing-config; drop the explicit URL flags or set --use-signing-config=false")
+	ErrSigningConfigURLConflict    = errors.New(
+		"trust: explicit --fulcio-url/--rekor-url/--tsa-url cannot be combined with --use-signing-config or --signing-config; drop the explicit URL flags or set --use-signing-config=false",
+	)
 )

@@ -20,7 +20,6 @@ import (
 	"github.com/sigstore/sigstore-go/pkg/root"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
 	"github.com/thomsonreuters/stamp/pkg/config"
 	"github.com/thomsonreuters/stamp/pkg/config/flags"
 	"github.com/thomsonreuters/stamp/pkg/types"

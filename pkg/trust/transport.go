@@ -83,9 +83,13 @@ func redactHeaders(h http.Header) http.Header {
 }
 
 func NewHTTPClient(log logger.Logger, insecure bool) *http.Client {
-	var base http.RoundTripper = http.DefaultTransport
+	var base = http.DefaultTransport
 	if insecure {
-		t := http.DefaultTransport.(*http.Transport).Clone()
+		dt, ok := http.DefaultTransport.(*http.Transport)
+		if !ok {
+			return &http.Client{Timeout: defaultHTTPTimeout, Transport: &LoggingTransport{Base: base, Log: log}}
+		}
+		t := dt.Clone()
 		t.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} //nolint:gosec // opt-in via --insecure
 		base = t
 	}

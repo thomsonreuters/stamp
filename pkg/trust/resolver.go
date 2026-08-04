@@ -19,7 +19,6 @@ import (
 	"os"
 
 	"github.com/sigstore/sigstore-go/pkg/root"
-
 	"github.com/thomsonreuters/stamp/pkg/config"
 	"github.com/thomsonreuters/stamp/pkg/config/flags"
 	"github.com/thomsonreuters/stamp/pkg/logger"
@@ -32,11 +31,11 @@ const DefaultTUFURL = flags.DefaultTUFURL
 // Options is the input to NewResolver. Bytes fields let in-process consumers
 // bypass file I/O; they take precedence over their Path counterparts.
 type Options struct {
-	TUFURL           string
-	TUFRootPath      string
-	TUFRootChecksum  string
-	TUFRootBytes     []byte
-	CachePath        string
+	TUFURL          string
+	TUFRootPath     string
+	TUFRootChecksum string
+	TUFRootBytes    []byte
+	CachePath       string
 
 	TrustedRootPath  string
 	TrustedRootBytes []byte

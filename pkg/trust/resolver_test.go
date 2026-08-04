@@ -15,12 +15,10 @@
 package trust
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
 	"github.com/thomsonreuters/stamp/pkg/logger"
 )
 
@@ -105,7 +103,7 @@ func TestNewResolver_Dispatch(t *testing.T) {
 			r, err := NewResolver(tt.opts, logger.NewNoop())
 			if tt.wantErr != nil {
 				require.Error(t, err)
-				assert.True(t, errors.Is(err, tt.wantErr), "expected %v, got %v", tt.wantErr, err)
+				assert.ErrorIs(t, err, tt.wantErr, "expected %v, got %v", tt.wantErr, err)
 				return
 			}
 			require.NoError(t, err)

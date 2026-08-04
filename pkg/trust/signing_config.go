@@ -19,7 +19,6 @@ import (
 	"fmt"
 
 	"github.com/sigstore/sigstore-go/pkg/root"
-
 	"github.com/thomsonreuters/stamp/pkg/logger"
 )
 

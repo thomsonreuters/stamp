@@ -87,7 +87,7 @@ func TestExplicitResolver_HappyPath(t *testing.T) {
 	assert.Len(t, tr.FulcioCertificateAuthorities(), 1)
 	assert.Len(t, tr.TimestampingAuthorities(), 1)
 	assert.Len(t, tr.RekorLogs(), 1)
-	assert.Len(t, tr.CTLogs(), 0)
+	assert.Empty(t, tr.CTLogs())
 }
 
 func TestExplicitResolver_FulcioOnly(t *testing.T) {
