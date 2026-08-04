@@ -12,25 +12,31 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package flags
+package trust
 
 import (
-	plugincobra "github.com/thomsonreuters/stamp/plugins/cobra"
+	"context"
+	"fmt"
+
+	"github.com/sigstore/sigstore-go/pkg/root"
 )
 
-const DefaultFulcioURL = "https://fulcio.sigstore.dev"
+type fileResolver struct {
+	path  string
+	bytes []byte
+}
 
-// FulcioServerFlags contains Fulcio server configuration (used by signing and verification).
-var FulcioServerFlags = plugincobra.FlagGroup{
-	"fulcio-url": {
-		Name:       "fulcio-url",
-		ShortName:  "u",
-		ConfigPath: FulcioURL,
-		Type:       plugincobra.StringFlag,
-		Default:    DefaultFulcioURL,
-		Help:       "Fulcio server URL",
-		Constraints: &plugincobra.FlagConstraints{
-			RequiresTLS: true,
-		},
-	},
+func (r *fileResolver) Resolve(_ context.Context) (*root.TrustedRoot, error) {
+	if len(r.bytes) > 0 {
+		tr, err := root.NewTrustedRootFromJSON(r.bytes)
+		if err != nil {
+			return nil, fmt.Errorf("trust: parse trusted root bytes: %w", err)
+		}
+		return tr, nil
+	}
+	tr, err := root.NewTrustedRootFromPath(r.path)
+	if err != nil {
+		return nil, fmt.Errorf("trust: load trusted root from %q: %w", r.path, err)
+	}
+	return tr, nil
 }

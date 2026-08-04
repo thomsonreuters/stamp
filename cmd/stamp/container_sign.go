@@ -86,7 +86,10 @@ func init() {
 	_ = plugincobra.ApplyFlagGroup(containerSignCmd, flags.RekorServerFlags)
 	_ = plugincobra.ApplyFlagGroup(containerSignCmd, flags.RekorVersionFlags)
 	_ = plugincobra.ApplyFlagGroup(containerSignCmd, flags.TSAServerFlags)
+	_ = plugincobra.ApplyFlagGroup(containerSignCmd, flags.TrustFlags)
 	_ = plugincobra.ApplyFlagGroup(containerSignCmd, flags.ContainerSignFlags)
+
+	containerSignCmd.MarkFlagsMutuallyExclusive("trusted-root", "tuf-url")
 
 	containerCmd.AddCommand(containerSignCmd)
 }

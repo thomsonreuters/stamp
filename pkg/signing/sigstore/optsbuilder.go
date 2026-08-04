@@ -18,23 +18,54 @@ import (
 	"context"
 	"crypto"
 	"fmt"
+	"time"
+
+	"github.com/sigstore/sigstore-go/pkg/root"
 
 	"github.com/thomsonreuters/stamp/pkg/config"
 	"github.com/thomsonreuters/stamp/pkg/config/flags"
 	"github.com/thomsonreuters/stamp/pkg/crypto/keys"
 	pkgerrors "github.com/thomsonreuters/stamp/pkg/errors"
+	"github.com/thomsonreuters/stamp/pkg/logger"
 	"github.com/thomsonreuters/stamp/pkg/signing"
 	"github.com/thomsonreuters/stamp/pkg/signing/fulcio"
+	"github.com/thomsonreuters/stamp/pkg/trust"
 	"github.com/thomsonreuters/stamp/pkg/types"
 	"github.com/thomsonreuters/stamp/pkg/utils"
 )
 
-// BuildOptionsFromConfig assembles sigstore.Options from the standard
-// signer flags (--signer, --private-key, --password*, --fulcio-url,
-// --oidc-token*, --rekor, --rekor-url, etc.). Attestor call sites should
-// use this so that flag translation stays in one place.
-func BuildOptionsFromConfig(ctx context.Context, cfg config.ConfigurationIface) (Options, error) {
+// BuildOptionsFromConfig assembles sigstore.Options from CLI flags and trust configuration.
+func BuildOptionsFromConfig(ctx context.Context, cfg config.ConfigurationIface, log logger.Logger) (Options, error) {
 	opts := Options{}
+	trustOpts := trust.OptionsFromConfig(cfg)
+
+	resolver, err := trust.NewResolver(trustOpts, log)
+	if err != nil {
+		return opts, pkgerrors.WrapWithContext(err, "sigstore", "build_opts", "trust config error")
+	}
+	tr, err := resolver.Resolve(ctx)
+	if err != nil {
+		return opts, pkgerrors.WrapWithContext(err, "sigstore", "build_opts", "failed to resolve trusted root")
+	}
+	opts.TrustedRoot = tr
+
+	scResolver, err := trust.NewSigningConfigResolver(trustOpts, log)
+	if err != nil {
+		return opts, pkgerrors.WrapWithContext(err, "sigstore", "build_opts", "signing config error")
+	}
+	sc, err := scResolver.Resolve(ctx)
+	if err != nil {
+		return opts, pkgerrors.WrapWithContext(err, "sigstore", "build_opts", "failed to resolve signing config")
+	}
+	if sc != nil && hasExplicitServiceURL(cfg) {
+		return opts, pkgerrors.WrapWithContext(trust.ErrSigningConfigURLConflict, "sigstore", "build_opts", "signing config conflict")
+	}
+	opts.SigningConfig = sc
+
+	urls, err := resolveEffectiveURLs(cfg, sc)
+	if err != nil {
+		return opts, pkgerrors.WrapWithContext(err, "sigstore", "build_opts", "failed to resolve effective service URLs")
+	}
 
 	switch cfg.GetString(flags.Signer) {
 	case types.SignerKey.String():
@@ -44,7 +75,7 @@ func BuildOptionsFromConfig(ctx context.Context, cfg config.ConfigurationIface) 
 		}
 		opts.Key = keyOpts
 	case types.SignerFulcio.String():
-		fulcioOpts, err := BuildFulcioOptions(ctx, cfg)
+		fulcioOpts, err := BuildFulcioOptions(ctx, cfg, urls.fulcio)
 		if err != nil {
 			return opts, err
 		}
@@ -52,20 +83,72 @@ func BuildOptionsFromConfig(ctx context.Context, cfg config.ConfigurationIface) 
 	}
 
 	if cfg.GetBool(flags.TransparencyEnable) {
-		opts.Rekor = &RekorOptions{
-			URL:     cfg.GetString(flags.RekorURL),
-			Version: uint32(cfg.GetInt(flags.RekorVersion)),
-		}
+		opts.Rekor = &RekorOptions{URL: urls.rekor, Version: urls.rekorVersion}
 	}
-	if tsaURL := cfg.GetString(flags.TSAURL); tsaURL != "" {
-		opts.TSA = &TSAOptions{URL: tsaURL}
+	if urls.tsa != "" {
+		opts.TSA = &TSAOptions{URL: urls.tsa}
 	}
 	return opts, nil
 }
 
-// BuildKeyOptions loads the private key from --private-key using a password
-// resolved via --password / --password-file / --prompt, and returns a
-// KeyOptions populated with the crypto.Signer and its fingerprint.
+// hasExplicitServiceURL returns true if the user explicitly set a service URL that conflicts with SigningConfig.
+func hasExplicitServiceURL(cfg config.ConfigurationIface) bool {
+	if cfg.GetString(flags.Signer) == types.SignerFulcio.String() && cfg.IsSet(flags.FulcioURL) {
+		return true
+	}
+	if cfg.GetBool(flags.TransparencyEnable) && cfg.IsSet(flags.RekorURL) {
+		return true
+	}
+	return cfg.IsSet(flags.TSAURL)
+}
+
+type effectiveURLs struct {
+	fulcio       string
+	rekor        string
+	tsa          string
+	rekorVersion uint32
+}
+
+// resolveEffectiveURLs computes service URLs, preferring SigningConfig over CLI flags.
+func resolveEffectiveURLs(cfg config.ConfigurationIface, sc *root.SigningConfig) (effectiveURLs, error) {
+	urls := effectiveURLs{
+		fulcio:       cfg.GetString(flags.FulcioURL),
+		rekor:        cfg.GetString(flags.RekorURL),
+		tsa:          cfg.GetString(flags.TSAURL),
+		rekorVersion: uint32(cfg.GetInt(flags.RekorVersion)),
+	}
+	if urls.rekorVersion == 0 {
+		urls.rekorVersion = 1
+	}
+	if sc == nil {
+		return urls, nil
+	}
+
+	now := time.Now()
+
+	if svc, err := root.SelectService(sc.FulcioCertificateAuthorityURLs(), []uint32{1}, now); err != nil {
+		return urls, fmt.Errorf("signing config: fulcio URL: %w", err)
+	} else {
+		urls.fulcio = svc.URL
+	}
+
+	if svc, err := root.SelectService(sc.RekorLogURLs(), []uint32{urls.rekorVersion}, now); err != nil {
+		return urls, fmt.Errorf("signing config: rekor URL (v%d): %w", urls.rekorVersion, err)
+	} else {
+		urls.rekor = svc.URL
+	}
+
+	if urls.tsa == "" && urls.rekorVersion == 2 {
+		svc, err := root.SelectService(sc.TimestampAuthorityURLs(), []uint32{1}, now)
+		if err != nil {
+			return urls, fmt.Errorf("signing config: tsa URL required for rekor v2: %w", err)
+		}
+		urls.tsa = svc.URL
+	}
+	return urls, nil
+}
+
+// BuildKeyOptions loads the private key and returns KeyOptions with crypto.Signer and fingerprint.
 func BuildKeyOptions(cfg config.ConfigurationIface) (*KeyOptions, error) {
 	keyPath := cfg.GetString(flags.PrivateKey)
 
@@ -97,11 +180,8 @@ func BuildKeyOptions(cfg config.ConfigurationIface) (*KeyOptions, error) {
 	}, nil
 }
 
-// BuildFulcioOptions reads Fulcio flags, resolves the OIDC token (via
-// direct value, file, SPIRE, or GitHub Actions), and returns a
-// FulcioOptions ready to sign with.
-func BuildFulcioOptions(ctx context.Context, cfg config.ConfigurationIface) (*FulcioOptions, error) {
-	fulcioURL := cfg.GetString(flags.FulcioURL)
+// BuildFulcioOptions resolves the OIDC token and returns FulcioOptions.
+func BuildFulcioOptions(ctx context.Context, cfg config.ConfigurationIface, fulcioURL string) (*FulcioOptions, error) {
 	fulcioCfg := signing.FulcioSignerConfig{
 		FulcioURL:        fulcioURL,
 		Token:            cfg.GetString(flags.OIDCToken),

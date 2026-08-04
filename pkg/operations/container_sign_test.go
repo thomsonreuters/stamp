@@ -37,6 +37,25 @@ import (
 	"github.com/thomsonreuters/stamp/pkg/signing/sigstore"
 )
 
+// stubTrustConfig points the resolver at a local trusted_root.json so tests
+// avoid TUF network calls. URL keys are left to per-test setups since testify
+// resolves .On() calls FIFO.
+func stubTrustConfig(cfg *config.MockConfiguration) {
+	_, self, _, _ := runtime.Caller(0)
+	fixturePath := filepath.Join(filepath.Dir(self), "testdata", "trusted_root.json")
+
+	cfg.On("GetString", flags.TrustedRootPath).Return(fixturePath).Maybe()
+	cfg.On("GetString", flags.TUFURL).Return("").Maybe()
+	cfg.On("GetString", flags.TUFRootPath).Return("").Maybe()
+	cfg.On("GetString", flags.TUFRootChecksum).Return("").Maybe()
+	cfg.On("GetString", flags.FulcioCertChain).Return("").Maybe()
+	cfg.On("GetString", flags.RekorPublicKey).Return("").Maybe()
+	cfg.On("GetString", flags.TSACertChain).Return("").Maybe()
+	cfg.On("GetString", flags.SigningConfigPath).Return("").Maybe()
+	cfg.On("GetBool", flags.UseSigningConfig).Return(false).Maybe()
+	cfg.On("GetBool", flags.Insecure).Return(false).Maybe()
+}
+
 // writeTempECDSAKey writes an unencrypted PKCS#8 P-256 private key to a
 // temp file and returns its path. Cleanup is handled by t.TempDir.
 func writeTempECDSAKey(t *testing.T) string {
@@ -209,7 +228,11 @@ func TestContainerSignOp_buildSignOptions_KeyMode(t *testing.T) {
 	cfg.On("GetString", flags.CryptographyKeyPasswordFile).Return("")
 	cfg.On("GetBool", flags.CryptographyKeyPasswordPrompt).Return(false)
 	cfg.On("GetBool", flags.TransparencyEnable).Return(false).Maybe()
+	cfg.On("GetString", flags.FulcioURL).Return("").Maybe()
+	cfg.On("GetString", flags.RekorURL).Return("").Maybe()
 	cfg.On("GetString", flags.TSAURL).Return("").Maybe()
+	cfg.On("GetInt", flags.RekorVersion).Return(1).Maybe()
+	stubTrustConfig(cfg)
 
 	op := NewContainerSignOp(cfg, logger.NewNoop(), output.NewNoop())
 	opts, err := op.buildSignOptions(context.Background())
@@ -239,6 +262,7 @@ func TestContainerSignOp_buildSignOptions_FulcioMode(t *testing.T) {
 	cfg.On("GetString", flags.RekorURL).Return("https://rekor.example.com")
 	cfg.On("GetInt", flags.RekorVersion).Return(1).Maybe()
 	cfg.On("GetString", flags.TSAURL).Return("").Maybe()
+	stubTrustConfig(cfg)
 
 	op := NewContainerSignOp(cfg, logger.NewNoop(), output.NewNoop())
 	opts, err := op.buildSignOptions(context.Background())
@@ -270,7 +294,10 @@ func TestContainerSignOp_buildSignOptions_NoRegistryEnv(t *testing.T) {
 	cfg.On("GetBool", flags.UseGitHub).Return(false)
 	cfg.On("GetBool", flags.Insecure).Return(false)
 	cfg.On("GetBool", flags.TransparencyEnable).Return(false)
+	cfg.On("GetString", flags.RekorURL).Return("").Maybe()
 	cfg.On("GetString", flags.TSAURL).Return("").Maybe()
+	cfg.On("GetInt", flags.RekorVersion).Return(1).Maybe()
+	stubTrustConfig(cfg)
 
 	op := NewContainerSignOp(cfg, logger.NewNoop(), output.NewNoop())
 	opts, err := op.buildSignOptions(context.Background())
@@ -291,6 +318,11 @@ func TestContainerSignOp_Execute_BuildSignOptionsError(t *testing.T) {
 	cfg.On("GetString", flags.CryptographyKeyPasswordFile).Return("")
 	cfg.On("GetBool", flags.CryptographyKeyPasswordPrompt).Return(false)
 	cfg.On("GetBool", flags.TransparencyEnable).Return(false).Maybe()
+	cfg.On("GetString", flags.FulcioURL).Return("").Maybe()
+	cfg.On("GetString", flags.RekorURL).Return("").Maybe()
+	cfg.On("GetString", flags.TSAURL).Return("").Maybe()
+	cfg.On("GetInt", flags.RekorVersion).Return(1).Maybe()
+	stubTrustConfig(cfg)
 
 	op := NewContainerSignOp(cfg, logger.NewNoop(), output.NewNoop())
 	err := op.Execute(context.Background(), "registry.example.com/app:v1")

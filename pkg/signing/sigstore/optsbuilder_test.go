@@ -167,7 +167,6 @@ func TestBuildFulcioOptions_NoTokenSource(t *testing.T) {
 	t.Setenv("SPIFFE_ENDPOINT_SOCKET", "")
 
 	cfg := config.NewMockConfiguration()
-	cfg.On("GetString", flags.FulcioURL).Return("https://fulcio.example.com")
 	cfg.On("GetString", flags.OIDCToken).Return("")
 	cfg.On("GetString", flags.OIDCTokenFile).Return("")
 	cfg.On("GetBool", flags.UseSpire).Return(false)
@@ -175,7 +174,7 @@ func TestBuildFulcioOptions_NoTokenSource(t *testing.T) {
 	cfg.On("GetBool", flags.UseGitHub).Return(false)
 	cfg.On("GetBool", flags.Insecure).Return(false)
 
-	_, err := BuildFulcioOptions(context.Background(), cfg)
+	_, err := BuildFulcioOptions(context.Background(), cfg, "https://fulcio.example.com")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "OIDC token")
 	cfg.AssertExpectations(t)
@@ -183,7 +182,6 @@ func TestBuildFulcioOptions_NoTokenSource(t *testing.T) {
 
 func TestBuildFulcioOptions_DirectToken(t *testing.T) {
 	cfg := config.NewMockConfiguration()
-	cfg.On("GetString", flags.FulcioURL).Return("https://fulcio.example.com")
 	cfg.On("GetString", flags.OIDCToken).Return("my-oidc-token")
 	cfg.On("GetString", flags.OIDCTokenFile).Return("")
 	cfg.On("GetBool", flags.UseSpire).Return(false)
@@ -191,7 +189,7 @@ func TestBuildFulcioOptions_DirectToken(t *testing.T) {
 	cfg.On("GetBool", flags.UseGitHub).Return(false)
 	cfg.On("GetBool", flags.Insecure).Return(false)
 
-	got, err := BuildFulcioOptions(context.Background(), cfg)
+	got, err := BuildFulcioOptions(context.Background(), cfg, "https://fulcio.example.com")
 	require.NoError(t, err)
 	require.NotNil(t, got)
 	assert.Equal(t, "https://fulcio.example.com", got.URL)

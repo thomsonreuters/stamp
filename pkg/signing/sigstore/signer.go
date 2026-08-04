@@ -12,11 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package sigstore produces sigstore Bundle v0.3 signatures over arbitrary
-// payloads. Callers supply the payload and payloadType (typically an
-// in-toto Statement with application/vnd.in-toto+json); the package handles
-// keypair adaptation, Fulcio certificate issuance, Rekor entry submission,
-// and bundle serialization.
+// Package sigstore produces sigstore Bundle v0.3 signatures.
 package sigstore
 
 import (
@@ -30,8 +26,7 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
-// Signer is safe to reuse across many SignBundle calls; per-call config
-// (key material, Fulcio token, Rekor URL) lives in Options.
+// Signer produces sigstore bundles. Safe for reuse across calls.
 type Signer struct {
 	logger logger.Logger
 }
@@ -40,9 +35,7 @@ func NewSigner(log logger.Logger) *Signer {
 	return &Signer{logger: log}
 }
 
-// SignBundle signs payload with the material specified by opts and returns
-// a sigstore Bundle v0.3. payloadType is the DSSE payload type, e.g.
-// intoto.PayloadType ("application/vnd.in-toto+json").
+// SignBundle signs payload and returns a sigstore Bundle v0.3.
 func (s *Signer) SignBundle(ctx context.Context, payload []byte, payloadType string, opts Options) (*Result, error) {
 	if err := opts.Validate(); err != nil {
 		return nil, err
@@ -86,7 +79,6 @@ func (s *Signer) SignBundle(ctx context.Context, payload []byte, payloadType str
 	if err != nil {
 		return nil, wrapSignBundleError(err, opts.Rekor != nil)
 	}
-	// Round-trip parse to catch malformed bundles before we hand them out.
 	if _, verr := sigstorebundle.NewBundle(b); verr != nil {
 		return nil, fmt.Errorf("sigstore sign: bundle validation: %w", verr)
 	}
@@ -109,9 +101,7 @@ func rekorVersionForLog(r *RekorOptions) uint32 {
 	return r.Version
 }
 
-// wrapSignBundleError translates sigstore-go's cryptic TextConsumer
-// failure — raised when Rekor returns non-JSON (e.g. a policy denial) —
-// into an actionable message.
+// wrapSignBundleError translates cryptic sigstore-go errors into actionable messages.
 func wrapSignBundleError(err error, rekorEnabled bool) error {
 	if rekorEnabled && strings.Contains(err.Error(), "TextConsumer") {
 		return fmt.Errorf(
