@@ -18,6 +18,7 @@ repos:
     hooks:
       - id: check-added-large-files
       - id: check-json
+        exclude: 'testdata/malformed\.json$'
       - id: check-toml
       - id: check-yaml
         exclude: 'testdata/invalid.*\.ya?ml$'
