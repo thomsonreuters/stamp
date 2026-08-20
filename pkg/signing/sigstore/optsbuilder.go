@@ -39,29 +39,11 @@ func BuildOptionsFromConfig(ctx context.Context, cfg config.ConfigurationIface, 
 
 	var sc *root.SigningConfig
 	if usesSigstoreServices(cfg) {
-		trustOpts := trust.OptionsFromConfig(cfg)
-
-		resolver, err := trust.NewResolver(trustOpts, log)
+		tr, resolvedSC, err := resolveTrustMaterial(ctx, cfg, log)
 		if err != nil {
-			return opts, pkgerrors.WrapWithContext(err, "sigstore", "build_opts", "trust config error")
-		}
-		tr, err := resolver.Resolve(ctx)
-		if err != nil {
-			return opts, pkgerrors.WrapWithContext(err, "sigstore", "build_opts", "failed to resolve trusted root")
+			return opts, err
 		}
 		opts.TrustedRoot = tr
-
-		scResolver, err := trust.NewSigningConfigResolver(trustOpts, log)
-		if err != nil {
-			return opts, pkgerrors.WrapWithContext(err, "sigstore", "build_opts", "signing config error")
-		}
-		resolvedSC, err := scResolver.Resolve(ctx)
-		if err != nil {
-			return opts, pkgerrors.WrapWithContext(err, "sigstore", "build_opts", "failed to resolve signing config")
-		}
-		if resolvedSC != nil && hasExplicitServiceURL(cfg) {
-			return opts, pkgerrors.WrapWithContext(trust.ErrSigningConfigURLConflict, "sigstore", "build_opts", "signing config conflict")
-		}
 		opts.SigningConfig = resolvedSC
 		sc = resolvedSC
 	} else {
@@ -95,6 +77,35 @@ func BuildOptionsFromConfig(ctx context.Context, cfg config.ConfigurationIface, 
 		opts.TSA = &TSAOptions{URL: urls.tsa}
 	}
 	return opts, nil
+}
+
+// resolveTrustMaterial resolves the TrustedRoot and (optionally) the SigningConfig
+// from the configured source (TUF, file, or explicit inputs), enforcing the
+// URL-conflict guard when a SigningConfig is active.
+func resolveTrustMaterial(ctx context.Context, cfg config.ConfigurationIface, log logger.Logger) (*root.TrustedRoot, *root.SigningConfig, error) {
+	trustOpts := trust.OptionsFromConfig(cfg)
+
+	resolver, err := trust.NewResolver(trustOpts, log)
+	if err != nil {
+		return nil, nil, pkgerrors.WrapWithContext(err, "sigstore", "build_opts", "trust config error")
+	}
+	tr, err := resolver.Resolve(ctx)
+	if err != nil {
+		return nil, nil, pkgerrors.WrapWithContext(err, "sigstore", "build_opts", "failed to resolve trusted root")
+	}
+
+	scResolver, err := trust.NewSigningConfigResolver(trustOpts, log)
+	if err != nil {
+		return nil, nil, pkgerrors.WrapWithContext(err, "sigstore", "build_opts", "signing config error")
+	}
+	sc, err := scResolver.Resolve(ctx)
+	if err != nil {
+		return nil, nil, pkgerrors.WrapWithContext(err, "sigstore", "build_opts", "failed to resolve signing config")
+	}
+	if sc != nil && hasExplicitServiceURL(cfg) {
+		return nil, nil, pkgerrors.WrapWithContext(trust.ErrSigningConfigURLConflict, "sigstore", "build_opts", "signing config conflict")
+	}
+	return tr, sc, nil
 }
 
 func usesSigstoreServices(cfg config.ConfigurationIface) bool {
