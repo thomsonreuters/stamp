@@ -180,6 +180,109 @@ func TestBuildFulcioOptions_NoTokenSource(t *testing.T) {
 	cfg.AssertExpectations(t)
 }
 
+func TestUsesSigstoreServices(t *testing.T) {
+	tests := []struct {
+		name string
+		// signer, rekor, and the IsSet map define the flag state the case exercises.
+		// Any flag not listed in the map defaults to false.
+		signer string
+		rekor  bool
+		isSet  map[string]bool
+		want   bool
+	}{
+		{
+			name:   "key signer, no rekor, no tsa, no trust flags — SKIP",
+			signer: "key",
+			rekor:  false,
+			want:   false,
+		},
+		{
+			name:   "fulcio signer — RESOLVE (short-circuits on signer)",
+			signer: "fulcio",
+			want:   true,
+		},
+		{
+			name:   "key signer + --rekor — RESOLVE",
+			signer: "key",
+			rekor:  true,
+			want:   true,
+		},
+		{
+			name:   "key signer + --tsa-url — RESOLVE",
+			signer: "key",
+			isSet:  map[string]bool{flags.TSAURL: true},
+			want:   true,
+		},
+		{
+			name:   "key signer + --trusted-root — RESOLVE",
+			signer: "key",
+			isSet:  map[string]bool{flags.TrustedRootPath: true},
+			want:   true,
+		},
+		{
+			name:   "key signer + --tuf-url — RESOLVE",
+			signer: "key",
+			isSet:  map[string]bool{flags.TUFURL: true},
+			want:   true,
+		},
+		{
+			name:   "key signer + --tuf-root — RESOLVE",
+			signer: "key",
+			isSet:  map[string]bool{flags.TUFRootPath: true},
+			want:   true,
+		},
+		{
+			name:   "key signer + --fulcio-cert-chain — RESOLVE",
+			signer: "key",
+			isSet:  map[string]bool{flags.FulcioCertChain: true},
+			want:   true,
+		},
+		{
+			name:   "key signer + --rekor-public-key — RESOLVE",
+			signer: "key",
+			isSet:  map[string]bool{flags.RekorPublicKey: true},
+			want:   true,
+		},
+		{
+			name:   "key signer + --tsa-cert-chain — RESOLVE",
+			signer: "key",
+			isSet:  map[string]bool{flags.TSACertChain: true},
+			want:   true,
+		},
+		{
+			name:   "key signer + --signing-config — RESOLVE",
+			signer: "key",
+			isSet:  map[string]bool{flags.SigningConfigPath: true},
+			want:   true,
+		},
+	}
+
+	// All flags that usesSigstoreServices/hasExplicitTrustFlag may query.
+	trustIsSetKeys := []string{
+		flags.TSAURL,
+		flags.TrustedRootPath,
+		flags.TUFURL,
+		flags.TUFRootPath,
+		flags.FulcioCertChain,
+		flags.RekorPublicKey,
+		flags.TSACertChain,
+		flags.SigningConfigPath,
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := config.NewMockConfiguration()
+			// Unbounded stubs — the gate may short-circuit at any point.
+			cfg.On("GetString", flags.Signer).Return(tt.signer).Maybe()
+			cfg.On("GetBool", flags.TransparencyEnable).Return(tt.rekor).Maybe()
+			for _, k := range trustIsSetKeys {
+				cfg.On("IsSet", k).Return(tt.isSet[k]).Maybe()
+			}
+			assert.Equal(t, tt.want, usesSigstoreServices(cfg))
+		})
+	}
+}
+
 func TestBuildFulcioOptions_DirectToken(t *testing.T) {
 	cfg := config.NewMockConfiguration()
 	cfg.On("GetString", flags.OIDCToken).Return("my-oidc-token")

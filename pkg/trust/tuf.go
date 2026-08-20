@@ -67,7 +67,8 @@ func buildTUFOptions(ctx context.Context, url, cachePath string, rootBytes []byt
 	opts := sgtuf.DefaultOptions().
 		WithContext(ctx).
 		WithRepositoryBaseURL(url).
-		WithFetcher(f)
+		WithFetcher(f).
+		WithCacheValidity(1)
 	if rootBytes != nil {
 		opts = opts.WithRoot(rootBytes)
 	}

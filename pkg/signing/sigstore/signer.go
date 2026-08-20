@@ -50,6 +50,7 @@ func (s *Signer) SignBundle(ctx context.Context, payload []byte, payloadType str
 		Context:                    ctx,
 		CertificateProvider:        certProvider,
 		CertificateProviderOptions: certOpts,
+		TrustedRoot:                opts.TrustedRoot,
 	}
 	if opts.Rekor != nil {
 		bundleOpts.TransparencyLogs = []sign.Transparency{
@@ -72,6 +73,7 @@ func (s *Signer) SignBundle(ctx context.Context, payload []byte, payloadType str
 		"rekor", opts.Rekor != nil,
 		"rekor_version", rekorVersionForLog(opts.Rekor),
 		"tsa", opts.TSA != nil,
+		"trusted_root", opts.TrustedRoot != nil,
 		"payload_type", payloadType,
 	)
 

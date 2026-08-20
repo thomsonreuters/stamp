@@ -54,6 +54,17 @@ func stubTrustConfig(cfg *config.MockConfiguration) {
 	cfg.On("GetString", flags.SigningConfigPath).Return("").Maybe()
 	cfg.On("GetBool", flags.UseSigningConfig).Return(false).Maybe()
 	cfg.On("GetBool", flags.Insecure).Return(false).Maybe()
+
+	cfg.On("IsSet", flags.TrustedRootPath).Return(false).Maybe()
+	cfg.On("IsSet", flags.TUFURL).Return(false).Maybe()
+	cfg.On("IsSet", flags.TUFRootPath).Return(false).Maybe()
+	cfg.On("IsSet", flags.FulcioCertChain).Return(false).Maybe()
+	cfg.On("IsSet", flags.RekorPublicKey).Return(false).Maybe()
+	cfg.On("IsSet", flags.TSACertChain).Return(false).Maybe()
+	cfg.On("IsSet", flags.SigningConfigPath).Return(false).Maybe()
+	cfg.On("IsSet", flags.FulcioURL).Return(false).Maybe()
+	cfg.On("IsSet", flags.RekorURL).Return(false).Maybe()
+	cfg.On("IsSet", flags.TSAURL).Return(false).Maybe()
 }
 
 // writeTempECDSAKey writes an unencrypted PKCS#8 P-256 private key to a
