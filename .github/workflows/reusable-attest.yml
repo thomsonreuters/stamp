@@ -1,0 +1,455 @@
+# Copyright 2026 Thomson Reuters
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Reusable workflow that produces a signed collection attestation (in-toto
+# Statement wrapping stamp's command + file predicates) for a build described
+# by a checked-in spec file. The build runs inside this reusable workflow —
+# not in the caller's job — so the OIDC certificate's job_workflow_ref pins
+# to this workflow at the ref the caller invoked (SLSA L3 posture).
+#
+# Spec file schema (e.g. .stamp-attest.yml at repo root):
+#
+#   version: 1
+#   name: demo-app-build              # optional; defaults to basename of first artifact
+#   working_directory: .              # optional; relative to inputs.working-directory
+#   build:
+#     command: |                       # required; multi-line shell allowed
+#       npm ci
+#       npm run build
+#       tar -czf app-build.tgz build/
+#     shell: /bin/bash                 # optional; default /bin/bash
+#   artifacts:                         # required; one or more paths (in-toto subjects)
+#     - app-build.tgz
+#   hash_algorithms:                   # optional; default [sha256]
+#     - sha256
+
+name: Provenance Attest
+
+on:
+  workflow_call:
+    inputs:
+      attest-config:
+        description: "Path to the attestation spec file (e.g. .stamp-attest.yml)."
+        required: true
+        type: string
+      working-directory:
+        description: "Directory in which the spec file and build run. Defaults to repo root."
+        required: false
+        default: "."
+        type: string
+      checkout-ref:
+        description: "Git ref to check out. Defaults to caller ref."
+        required: false
+        default: ""
+        type: string
+      runs-on:
+        description: "Runner label."
+        required: false
+        default: "ubuntu-latest"
+        type: string
+
+      node-version:
+        description: "Node.js version to install. Skipped if empty."
+        required: false
+        default: ""
+        type: string
+      python-version:
+        description: "Python version to install. Skipped if empty."
+        required: false
+        default: ""
+        type: string
+
+      stamp-version:
+        description: "stamp CLI version tag, or 'latest'."
+        required: false
+        default: "latest"
+        type: string
+
+      tuf-url:
+        description: "TUF repository URL. Empty uses stamp default (public sigstore)."
+        required: false
+        default: ""
+        type: string
+      fulcio-url:
+        description: "Fulcio URL override for keyless signing."
+        required: false
+        default: ""
+        type: string
+      rekor-url:
+        description: "Rekor URL override."
+        required: false
+        default: ""
+        type: string
+      upload-to-rekor:
+        description: 'Rekor upload mode: "auto" (upload for keyless), "true", or "false".'
+        required: false
+        default: "auto"
+        type: string
+
+      upload-artifact:
+        description: "Upload the primary artifact as a workflow artifact."
+        required: false
+        default: true
+        type: boolean
+      upload-to-secpipe:
+        description: "Forward the attestation to secpipe."
+        required: false
+        default: false
+        type: boolean
+
+    secrets:
+      SIGNING_KEY:
+        description: "PEM-encoded private key. If unset, keyless signing via GitHub OIDC is used."
+        required: false
+      SIGNING_KEY_PUBLIC:
+        description: "Public key. Required with SIGNING_KEY + Rekor upload."
+        required: false
+      SIGNING_KEY_PASSWORD:
+        description: "Password for encrypted private key."
+        required: false
+      secpipe-token:
+        description: "Bearer token for secpipe upload. Required when upload-to-secpipe is true."
+        required: false
+
+    outputs:
+      attestation-file:
+        description: "Absolute path to the generated attestation bundle."
+        value: ${{ jobs.attest.outputs.attestation-file }}
+      attestation-sha256:
+        description: "sha256 of the attestation bundle file."
+        value: ${{ jobs.attest.outputs.attestation-sha256 }}
+      subject-digest:
+        description: "sha256 of the primary artifact (matches the in-toto subject)."
+        value: ${{ jobs.attest.outputs.subject-digest }}
+      rekor-log-index:
+        description: "Rekor transparency log index (empty when Rekor upload is skipped)."
+        value: ${{ jobs.attest.outputs.rekor-log-index }}
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  attest:
+    name: Build and attest
+    runs-on: ${{ inputs.runs-on }}
+    outputs:
+      attestation-file: ${{ steps.generate.outputs.attestation-file }}
+      attestation-sha256: ${{ steps.generate.outputs.attestation-sha256 }}
+      subject-digest: ${{ steps.generate.outputs.subject-digest }}
+      rekor-log-index: ${{ steps.generate.outputs.rekor-log-index }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          ref: ${{ inputs.checkout-ref }}
+          persist-credentials: false
+
+      - name: Setup Node.js
+        if: inputs.node-version != ''
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      - name: Setup Python
+        if: inputs.python-version != ''
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: ${{ inputs.python-version }}
+
+      - name: Verify attest config exists
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          if [ ! -f "${{ inputs.attest-config }}" ]; then
+            echo "attest-config file not found: ${{ inputs.attest-config }}"
+            exit 1
+          fi
+
+      - name: Download stamp CLI
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STAMP_VERSION_INPUT: ${{ inputs.stamp-version }}
+        run: |
+          set -euo pipefail
+          if [ "$STAMP_VERSION_INPUT" = "latest" ]; then
+            STAMP_VERSION=$(curl -fsSL \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              https://api.github.com/repos/thomsonreuters/stamp/releases/latest \
+              | jq -r .tag_name)
+          else
+            STAMP_VERSION="$STAMP_VERSION_INPUT"
+          fi
+          VERSION_NUM="${STAMP_VERSION#v}"
+
+          case "$(uname -s)" in
+            Linux)  OS="linux" ;;
+            Darwin) OS="darwin" ;;
+            *) echo "Unsupported OS: $(uname -s)"; exit 1 ;;
+          esac
+          case "$(uname -m)" in
+            x86_64|amd64) ARCH="amd64" ;;
+            aarch64|arm64) ARCH="arm64" ;;
+            *) echo "Unsupported arch: $(uname -m)"; exit 1 ;;
+          esac
+
+          ARCHIVE="stamp_${VERSION_NUM}_${OS}_${ARCH}.tar.gz"
+          CHECKSUMS="stamp_${VERSION_NUM}_checksums.txt"
+          BASE="https://github.com/thomsonreuters/stamp/releases/download/${STAMP_VERSION}"
+
+          curl -fL -o "${ARCHIVE}" "${BASE}/${ARCHIVE}"
+          curl -fL -o "${CHECKSUMS}" "${BASE}/${CHECKSUMS}"
+          grep " ${ARCHIVE}\$" "${CHECKSUMS}" | sha256sum -c -
+
+          tar -xzf "${ARCHIVE}"
+          sudo mv stamp /usr/local/bin/stamp
+          rm -f "${ARCHIVE}" "${CHECKSUMS}"
+          stamp version
+
+      - name: Setup signing key
+        id: signing-key
+        env:
+          SIGNING_KEY_CONTENT: ${{ secrets.SIGNING_KEY }}
+          SIGNING_KEY_PUBLIC_CONTENT: ${{ secrets.SIGNING_KEY_PUBLIC }}
+          SIGNING_KEY_PASSWORD_CONTENT: ${{ secrets.SIGNING_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -n "${SIGNING_KEY_CONTENT}" ]; then
+            printf '%s' "${SIGNING_KEY_CONTENT}" > "${RUNNER_TEMP}/signing-key.pem"
+            chmod 600 "${RUNNER_TEMP}/signing-key.pem"
+            echo "key-path=${RUNNER_TEMP}/signing-key.pem" >> "$GITHUB_OUTPUT"
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+            if [ -n "${SIGNING_KEY_PUBLIC_CONTENT}" ]; then
+              printf '%s' "${SIGNING_KEY_PUBLIC_CONTENT}" > "${RUNNER_TEMP}/signing-key.pub"
+              chmod 644 "${RUNNER_TEMP}/signing-key.pub"
+              echo "public-key-path=${RUNNER_TEMP}/signing-key.pub" >> "$GITHUB_OUTPUT"
+            fi
+            if [ -n "${SIGNING_KEY_PASSWORD_CONTENT}" ]; then
+              printf '%s' "${SIGNING_KEY_PASSWORD_CONTENT}" > "${RUNNER_TEMP}/signing-key.pwd"
+              chmod 600 "${RUNNER_TEMP}/signing-key.pwd"
+              echo "password-file-path=${RUNNER_TEMP}/signing-key.pwd" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Materialize stamp workflow config
+        id: config
+        working-directory: ${{ inputs.working-directory }}
+        env:
+          ATTEST_CONFIG: ${{ inputs.attest-config }}
+        # Reads the caller's declarative spec and produces two files under
+        # $RUNNER_TEMP:
+        #   build.sh            - the exact bytes of .build.command, with
+        #                         `set -euo pipefail` and a cd to
+        #                         .working_directory prepended.
+        #   stamp-workflow.yaml - stamp's native config with a command
+        #                         attestor + file attestor combined via
+        #                         output_mode: collection.
+        # Only the *path* to build.sh reaches stamp's YAML; the command
+        # bytes never enter YAML, so shell metacharacters cannot break it.
+        run: |
+          set -euo pipefail
+
+          # Validate required spec fields upfront with clear errors.
+          if [ "$(yq eval '.build.command // ""' "$ATTEST_CONFIG")" = "" ]; then
+            echo "spec error: .build.command is required in $ATTEST_CONFIG" >&2; exit 1
+          fi
+          if [ "$(yq eval '.artifacts | length' "$ATTEST_CONFIG")" = "0" ]; then
+            echo "spec error: .artifacts must be a non-empty list in $ATTEST_CONFIG" >&2; exit 1
+          fi
+
+          work_dir=$(yq eval '.working_directory // "."' "$ATTEST_CONFIG")
+
+          # Materialize the build script. printf %q shell-quotes work_dir
+          # so paths with spaces or quotes are safe.
+          build_script="${RUNNER_TEMP}/build.sh"
+          {
+            printf '#!/usr/bin/env bash\nset -euo pipefail\n'
+            printf 'cd %q\n\n' "$work_dir"
+            yq eval '.build.command' "$ATTEST_CONFIG"
+          } > "$build_script"
+          chmod +x "$build_script"
+
+          # Generate stamp's workflow config in a single yq transformation.
+          # strenv(BUILD_SCRIPT) reads the env var, guaranteeing the path
+          # cannot escape into YAML structure regardless of its content.
+          config_out="${RUNNER_TEMP}/stamp-workflow.yaml"
+          BUILD_SCRIPT="$build_script" yq eval '
+            {
+              "workflows": [{
+                "name": "attest",
+                "output_mode": "collection",
+                "failure_policy": "fail-fast",
+                "rekor": {"upload": true, "upload_target": "collection"},
+                "attestors": [
+                  {
+                    "name": "build",
+                    "type": "command",
+                    "config": {
+                      "shell": (.build.shell // "/bin/bash"),
+                      "command": ((.build.shell // "/bin/bash") + " " + strenv(BUILD_SCRIPT))
+                    }
+                  },
+                  {
+                    "name": "artifact",
+                    "type": "file",
+                    "config": {
+                      "base_path": (.working_directory // "."),
+                      "paths": .artifacts,
+                      "hash-algorithms": (.hash_algorithms // ["sha256"])
+                    }
+                  }
+                ]
+              }]
+            }
+          ' "$ATTEST_CONFIG" > "$config_out"
+
+          # Compute step outputs for downstream steps.
+          primary_artifact=$(yq eval '.artifacts[0]' "$ATTEST_CONFIG")
+          bundle_name=$(yq eval '.name // ""' "$ATTEST_CONFIG")
+          if [ -z "$bundle_name" ] || [ "$bundle_name" = "null" ]; then
+            bundle_name=$(basename "$primary_artifact")
+          fi
+          {
+            echo "path=${config_out}"
+            echo "primary-artifact=${primary_artifact}"
+            echo "bundle-name=${bundle_name}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Determine Rekor upload
+        id: rekor-decision
+        env:
+          UPLOAD_MODE: ${{ inputs.upload-to-rekor }}
+          KEY_CONFIGURED: ${{ steps.signing-key.outputs.configured }}
+          PUBLIC_KEY_PATH: ${{ steps.signing-key.outputs.public-key-path }}
+        run: |
+          set -euo pipefail
+          case "${UPLOAD_MODE}" in
+            true)  should_upload=true;  reason="explicit opt-in" ;;
+            false) should_upload=false; reason="explicit opt-out" ;;
+            auto)
+              if [ "${KEY_CONFIGURED}" = "true" ]; then
+                should_upload=false; reason="auto: key-based signing (Rekor optional)"
+              else
+                should_upload=true;  reason="auto: keyless signing (Rekor required for short-lived certs)"
+              fi
+              ;;
+            *) echo "Invalid upload-to-rekor: ${UPLOAD_MODE}"; exit 1 ;;
+          esac
+          if [ "${should_upload}" = "true" ] && [ "${KEY_CONFIGURED}" = "true" ] && [ -z "${PUBLIC_KEY_PATH:-}" ]; then
+            echo "Rekor upload with key-based signing requires SIGNING_KEY_PUBLIC secret."
+            exit 1
+          fi
+          echo "should-upload=${should_upload}" >> "$GITHUB_OUTPUT"
+          echo "Rekor upload: ${should_upload} (${reason})"
+
+      - name: Generate attestation
+        id: generate
+        working-directory: ${{ inputs.working-directory }}
+        env:
+          STAMP_CONFIG: ${{ steps.config.outputs.path }}
+          PRIMARY_ARTIFACT: ${{ steps.config.outputs.primary-artifact }}
+          TUF_URL: ${{ inputs.tuf-url }}
+          FULCIO_URL: ${{ inputs.fulcio-url }}
+          REKOR_URL: ${{ inputs.rekor-url }}
+          REKOR_UPLOAD: ${{ steps.rekor-decision.outputs.should-upload }}
+          KEY_PATH: ${{ steps.signing-key.outputs.key-path }}
+          KEY_PASSWORD_FILE: ${{ steps.signing-key.outputs.password-file-path }}
+          KEY_CONFIGURED: ${{ steps.signing-key.outputs.configured }}
+        run: |
+          set -euo pipefail
+          OUT_DIR="${RUNNER_TEMP}/attestations"
+          mkdir -p "$OUT_DIR"
+
+          args=(--config "$STAMP_CONFIG")
+          [ -n "$TUF_URL" ]    && args+=(--tuf-url    "$TUF_URL")
+          [ -n "$FULCIO_URL" ] && args+=(--fulcio-url "$FULCIO_URL")
+          [ -n "$REKOR_URL" ]  && args+=(--rekor-url  "$REKOR_URL")
+
+          args+=(run --all --persist --template "${OUT_DIR}/\${workflow}.json")
+
+          if [ "$KEY_CONFIGURED" = "true" ]; then
+            args+=(--signer key --private-key "$KEY_PATH")
+            [ -n "$KEY_PASSWORD_FILE" ] && args+=(--password-file "$KEY_PASSWORD_FILE")
+          else
+            args+=(--signer fulcio --github)
+          fi
+
+          if [ "$REKOR_UPLOAD" = "true" ]; then
+            args+=(--rekor --rekor-upload collection)
+          fi
+
+          stamp "${args[@]}"
+
+          attestation="${OUT_DIR}/attest.json"
+          test -f "$attestation" || { echo "attestation not produced"; exit 1; }
+
+          att_sha=$(sha256sum "$attestation" | awk '{print $1}')
+          echo "attestation-file=$attestation"       >> "$GITHUB_OUTPUT"
+          echo "attestation-sha256=$att_sha"          >> "$GITHUB_OUTPUT"
+
+          if [ -f "$PRIMARY_ARTIFACT" ]; then
+            subj=$(sha256sum "$PRIMARY_ARTIFACT" | awk '{print $1}')
+            echo "subject-digest=sha256:$subj"        >> "$GITHUB_OUTPUT"
+          fi
+
+          if [ "$REKOR_UPLOAD" = "true" ] && command -v jq >/dev/null; then
+            log_index=$(jq -r '.verificationMaterial.tlogEntries[0].logIndex // empty' "$attestation")
+            echo "rekor-log-index=${log_index}"       >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload artifact
+        if: inputs.upload-artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ${{ steps.config.outputs.bundle-name }}
+          path: ${{ inputs.working-directory }}/${{ steps.config.outputs.primary-artifact }}
+          if-no-files-found: error
+
+      - name: Upload attestation
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ${{ steps.config.outputs.bundle-name }}-attestation
+          path: ${{ steps.generate.outputs.attestation-file }}
+          if-no-files-found: error
+
+      - name: Forward attestation to secpipe
+        if: inputs.upload-to-secpipe
+        env:
+          SECPIPE_TOKEN: ${{ secrets.secpipe-token }}
+          ATTESTATION: ${{ steps.generate.outputs.attestation-file }}
+          SUBJECT: ${{ steps.generate.outputs.subject-digest }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SECPIPE_TOKEN:-}" ]; then
+            echo "upload-to-secpipe is true but secpipe-token is empty"; exit 1
+          fi
+          curl -fsSL -X POST \
+            -H "Authorization: Bearer ${SECPIPE_TOKEN}" \
+            -H "Content-Type: application/vnd.dev.sigstore.bundle+json;version=0.3" \
+            --data-binary "@${ATTESTATION}" \
+            "https://secpipe.thomsonreuters.com/api/v1/attestations?subject=${SUBJECT}"
+
+      - name: Cleanup sensitive files
+        if: always()
+        run: |
+          for f in "${RUNNER_TEMP}/signing-key.pem" "${RUNNER_TEMP}/signing-key.pwd"; do
+            if [ -f "$f" ]; then
+              shred -vfz "$f" 2>/dev/null || rm -f "$f"
+            fi
+          done
+          rm -f "${RUNNER_TEMP}/signing-key.pub"
