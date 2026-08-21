@@ -251,16 +251,18 @@ jobs:
         working-directory: ${{ inputs.working-directory }}
         env:
           ATTEST_CONFIG: ${{ inputs.attest-config }}
-        # Reads the caller's declarative spec and produces two files under
-        # $RUNNER_TEMP:
-        #   build.sh            - the exact bytes of .build.command, with
-        #                         `set -euo pipefail` and a cd to
-        #                         .working_directory prepended.
-        #   stamp-workflow.yaml - stamp's native config with a command
-        #                         attestor + file attestor combined via
-        #                         output_mode: collection.
-        # Only the *path* to build.sh reaches stamp's YAML; the command
-        # bytes never enter YAML, so shell metacharacters cannot break it.
+        # Reads the caller's declarative spec and produces stamp's native
+        # workflow config under $RUNNER_TEMP/stamp-workflow.yaml.
+        #
+        # The caller's build.command block is embedded verbatim as the
+        # command attestor's `command:` config value. In shell mode (the
+        # attestor default), stamp invokes `<shell> -c "<command>"` and
+        # records the exact bytes in the attestation's command_line field.
+        # This gives us:
+        #   - The full script content in the signed attestation.
+        #   - A unique top-level subject digest (sha256 of command bytes).
+        # `set -euo pipefail` is prepended so a failing step in the middle
+        # of a multi-line command fails the attestation.
         run: |
           set -euo pipefail
 
@@ -272,23 +274,11 @@ jobs:
             echo "spec error: .artifacts must be a non-empty list in $ATTEST_CONFIG" >&2; exit 1
           fi
 
-          work_dir=$(yq eval '.working_directory // "."' "$ATTEST_CONFIG")
-
-          # Materialize the build script. printf %q shell-quotes work_dir
-          # so paths with spaces or quotes are safe.
-          build_script="${RUNNER_TEMP}/build.sh"
-          {
-            printf '#!/usr/bin/env bash\nset -euo pipefail\n'
-            printf 'cd %q\n\n' "$work_dir"
-            yq eval '.build.command' "$ATTEST_CONFIG"
-          } > "$build_script"
-          chmod +x "$build_script"
-
           # Generate stamp's workflow config in a single yq transformation.
-          # strenv(BUILD_SCRIPT) reads the env var, guaranteeing the path
-          # cannot escape into YAML structure regardless of its content.
+          # yq handles YAML-safe serialization of the multi-line command
+          # block, so shell metacharacters cannot break the config.
           config_out="${RUNNER_TEMP}/stamp-workflow.yaml"
-          BUILD_SCRIPT="$build_script" yq eval '
+          yq eval '
             {
               "workflows": [{
                 "name": "attest",
@@ -301,7 +291,9 @@ jobs:
                     "type": "command",
                     "config": {
                       "shell": (.build.shell // "/bin/bash"),
-                      "command": ((.build.shell // "/bin/bash") + " " + strenv(BUILD_SCRIPT))
+                      "execution_mode": "shell",
+                      "working_directory": (.working_directory // "."),
+                      "command": ("set -euo pipefail\n" + .build.command)
                     }
                   },
                   {
@@ -452,6 +444,13 @@ jobs:
 
       - name: Forward attestation to secpipe
         if: inputs.upload-to-secpipe
+        # secpipe delivery is auxiliary — the attestation is already signed,
+        # bundled, and uploaded to Rekor by earlier steps. A secpipe outage
+        # or an unreachable endpoint should not fail the run and lose the
+        # attestation artifacts. Marked continue-on-error so failure shows
+        # in the UI without blocking. Flip to strict once the secpipe API
+        # contract and endpoint are stable.
+        continue-on-error: true
         env:
           SECPIPE_TOKEN: ${{ secrets.secpipe-token }}
           ATTESTATION: ${{ steps.generate.outputs.attestation-file }}
