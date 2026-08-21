@@ -217,7 +217,7 @@ jobs:
           tar -xzf "${ARCHIVE}"
           sudo mv stamp /usr/local/bin/stamp
           rm -f "${ARCHIVE}" "${CHECKSUMS}"
-          stamp version
+          stamp --version
 
       - name: Setup signing key
         id: signing-key
