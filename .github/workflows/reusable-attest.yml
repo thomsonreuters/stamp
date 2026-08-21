@@ -374,13 +374,22 @@ jobs:
           set -euo pipefail
           OUT_DIR="${RUNNER_TEMP}/attestations"
           mkdir -p "$OUT_DIR"
+          attestation="${OUT_DIR}/attest.json"
 
-          args=(--config "$STAMP_CONFIG")
+          # Stamp's --persist flag is validated as requiring --attestor
+          # (single-attestor mode), so it cannot be combined with --all
+          # workflow mode. Instead we rely on the workflow pipeline's
+          # default stdout behavior: with output_mode: collection, exactly
+          # one signed envelope (the collection) is emitted to stdout as
+          # JSON. Capture stdout to the attestation file. Logs go to stderr
+          # so they are visible in the Actions log without contaminating
+          # the JSON output.
+          args=(--config "$STAMP_CONFIG" --log-format json)
           [ -n "$TUF_URL" ]    && args+=(--tuf-url    "$TUF_URL")
           [ -n "$FULCIO_URL" ] && args+=(--fulcio-url "$FULCIO_URL")
           [ -n "$REKOR_URL" ]  && args+=(--rekor-url  "$REKOR_URL")
 
-          args+=(run --all --persist --template "${OUT_DIR}/\${workflow}.json")
+          args+=(run --all)
 
           if [ "$KEY_CONFIGURED" = "true" ]; then
             args+=(--signer key --private-key "$KEY_PATH")
@@ -393,10 +402,12 @@ jobs:
             args+=(--rekor --rekor-upload collection)
           fi
 
-          stamp "${args[@]}"
+          stamp "${args[@]}" > "$attestation"
 
-          attestation="${OUT_DIR}/attest.json"
-          test -f "$attestation" || { echo "attestation not produced"; exit 1; }
+          test -s "$attestation" || { echo "attestation not produced (empty stdout)"; exit 1; }
+          if ! jq empty "$attestation" >/dev/null 2>&1; then
+            echo "attestation is not valid JSON:"; head -c 4000 "$attestation"; exit 1
+          fi
 
           att_sha=$(sha256sum "$attestation" | awk '{print $1}')
           echo "attestation-file=$attestation"       >> "$GITHUB_OUTPUT"
@@ -407,7 +418,7 @@ jobs:
             echo "subject-digest=sha256:$subj"        >> "$GITHUB_OUTPUT"
           fi
 
-          if [ "$REKOR_UPLOAD" = "true" ] && command -v jq >/dev/null; then
+          if [ "$REKOR_UPLOAD" = "true" ]; then
             log_index=$(jq -r '.verificationMaterial.tlogEntries[0].logIndex // empty' "$attestation")
             echo "rekor-log-index=${log_index}"       >> "$GITHUB_OUTPUT"
           fi
