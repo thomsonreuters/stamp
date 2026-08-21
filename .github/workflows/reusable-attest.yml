@@ -376,15 +376,16 @@ jobs:
           mkdir -p "$OUT_DIR"
           attestation="${OUT_DIR}/attest.json"
 
-          # Stamp's --persist flag is validated as requiring --attestor
-          # (single-attestor mode), so it cannot be combined with --all
-          # workflow mode. Instead we rely on the workflow pipeline's
-          # default stdout behavior: with output_mode: collection, exactly
-          # one signed envelope (the collection) is emitted to stdout as
-          # JSON. Capture stdout to the attestation file. Logs go to stderr
-          # so they are visible in the Actions log without contaminating
-          # the JSON output.
-          args=(--config "$STAMP_CONFIG" --log-format json)
+          # Stamp's --persist flag requires --attestor (single-attestor mode)
+          # and cannot be combined with --all workflow mode. Instead we
+          # capture the workflow pipeline's stdout: with output_mode:
+          # collection, exactly one signed envelope (wrapped in a
+          # single-element JSON array) is emitted to stdout.
+          #
+          # --quiet suppresses progress/success user messages on stdout so
+          # only the envelope array survives. Logs and errors continue to
+          # go to stderr and remain visible in the Actions log.
+          args=(--config "$STAMP_CONFIG" --quiet)
           [ -n "$TUF_URL" ]    && args+=(--tuf-url    "$TUF_URL")
           [ -n "$FULCIO_URL" ] && args+=(--fulcio-url "$FULCIO_URL")
           [ -n "$REKOR_URL" ]  && args+=(--rekor-url  "$REKOR_URL")
@@ -402,12 +403,20 @@ jobs:
             args+=(--rekor --rekor-upload collection)
           fi
 
-          stamp "${args[@]}" > "$attestation"
+          raw="${attestation}.raw"
+          stamp "${args[@]}" > "$raw"
 
-          test -s "$attestation" || { echo "attestation not produced (empty stdout)"; exit 1; }
-          if ! jq empty "$attestation" >/dev/null 2>&1; then
-            echo "attestation is not valid JSON:"; head -c 4000 "$attestation"; exit 1
+          test -s "$raw" || { echo "attestation not produced (empty stdout)"; exit 1; }
+          if ! jq empty "$raw" >/dev/null 2>&1; then
+            echo "attestation is not valid JSON:"; head -c 4000 "$raw"; exit 1
           fi
+
+          # stamp writes a JSON array of envelopes to stdout via DataBatch.
+          # With output_mode: collection there is exactly one entry — the
+          # signed collection envelope. Unwrap so downstream tools see a
+          # single object.
+          jq 'if type == "array" then .[0] else . end' "$raw" > "$attestation"
+          rm -f "$raw"
 
           att_sha=$(sha256sum "$attestation" | awk '{print $1}')
           echo "attestation-file=$attestation"       >> "$GITHUB_OUTPUT"
@@ -418,6 +427,9 @@ jobs:
             echo "subject-digest=sha256:$subj"        >> "$GITHUB_OUTPUT"
           fi
 
+          # Rekor log index only exists on Sigstore-bundle envelopes.
+          # Bare DSSE envelopes have no verificationMaterial; that path
+          # returns empty and we don't fail.
           if [ "$REKOR_UPLOAD" = "true" ]; then
             log_index=$(jq -r '.verificationMaterial.tlogEntries[0].logIndex // empty' "$attestation")
             echo "rekor-log-index=${log_index}"       >> "$GITHUB_OUTPUT"
