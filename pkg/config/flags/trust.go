@@ -24,7 +24,7 @@ var TrustFlags = plugincobra.FlagGroup{
 		ConfigPath: TrustedRootPath,
 		Type:       plugincobra.StringFlag,
 		Default:    "",
-		Help:       "Path to a sigstore trusted_root.json (mutually exclusive with --tuf-url)",
+		Help:       "Path to a sigstore trusted_root.json (mutually exclusive with --tuf-url). For fully offline operation, also pass --use-signing-config=false (or provide --signing-config=<path> to read signing config locally)",
 	},
 	"tuf-url": {
 		Name:       "tuf-url",
