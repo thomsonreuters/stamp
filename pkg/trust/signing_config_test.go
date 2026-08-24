@@ -56,7 +56,6 @@ func TestNewSigningConfigResolver_Dispatch(t *testing.T) {
 		name     string
 		opts     Options
 		wantKind string // "nil", "file", "tuf"
-		wantErr  error
 	}{
 		{
 			name:     "no source → nil resolver",
@@ -78,30 +77,26 @@ func TestNewSigningConfigResolver_Dispatch(t *testing.T) {
 			opts:     Options{UseSigningConfig: true},
 			wantKind: "tuf",
 		},
+		// Precedence: explicit sources win over the default TUF fetch.
 		{
-			name:    "path + use-signing-config → conflict",
-			opts:    Options{SigningConfigPath: "/some/path.json", UseSigningConfig: true},
-			wantErr: ErrSigningConfigSourceConflict,
+			name:     "path + use-signing-config → path wins",
+			opts:     Options{SigningConfigPath: "/some/path.json", UseSigningConfig: true},
+			wantKind: "file",
 		},
 		{
-			name:    "bytes + use-signing-config → conflict",
-			opts:    Options{SigningConfigBytes: []byte("x"), UseSigningConfig: true},
-			wantErr: ErrSigningConfigSourceConflict,
+			name:     "bytes + use-signing-config → bytes win",
+			opts:     Options{SigningConfigBytes: []byte("x"), UseSigningConfig: true},
+			wantKind: "file",
 		},
 		{
-			name:    "bytes + path → conflict",
-			opts:    Options{SigningConfigBytes: []byte("x"), SigningConfigPath: "/y"},
-			wantErr: ErrSigningConfigSourceConflict,
+			name:     "bytes + path → bytes win",
+			opts:     Options{SigningConfigBytes: []byte("x"), SigningConfigPath: "/y"},
+			wantKind: "file",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r, err := NewSigningConfigResolver(tt.opts, logger.NewNoop())
-			if tt.wantErr != nil {
-				require.Error(t, err)
-				assert.ErrorIs(t, err, tt.wantErr, "expected %v, got %v", tt.wantErr, err)
-				return
-			}
 			require.NoError(t, err)
 			require.NotNil(t, r)
 			switch tt.wantKind {
@@ -117,6 +112,21 @@ func TestNewSigningConfigResolver_Dispatch(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Precedence: bytes must take precedence over path in file mode.
+func TestNewSigningConfigResolver_BytesPreferredOverPath(t *testing.T) {
+	r, err := NewSigningConfigResolver(Options{
+		SigningConfigBytes: []byte(minimalSigningConfigJSON),
+		SigningConfigPath:  "/does/not/exist.json",
+	}, logger.NewNoop())
+	require.NoError(t, err)
+	fr, ok := r.(*fileSigningConfigResolver)
+	require.True(t, ok)
+	// If bytes did not win, Resolve would try the bogus path and fail.
+	sc, err := fr.Resolve(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, sc)
 }
 
 func TestNilSigningConfigResolver_ReturnsNil(t *testing.T) {

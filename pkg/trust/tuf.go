@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 
@@ -48,7 +49,7 @@ func newTUFResolver(url string, opts Options, log logger.Logger) *tufResolver {
 }
 
 func (r *tufResolver) Resolve(ctx context.Context) (*root.TrustedRoot, error) {
-	rootBytes, err := resolveTUFRootBytes(ctx, r.opts, r.httpClient, r.log)
+	rootBytes, err := resolveTUFRootBytes(ctx, r.opts, r.httpClient)
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +81,7 @@ func buildTUFOptions(ctx context.Context, url, cachePath string, rootBytes []byt
 
 // resolveTUFRootBytes returns the initial TUF trust anchor, or nil when
 // sigstore-go's embedded root should be used.
-func resolveTUFRootBytes(ctx context.Context, opts Options, httpClient *http.Client, log logger.Logger) ([]byte, error) {
+func resolveTUFRootBytes(ctx context.Context, opts Options, httpClient *http.Client) ([]byte, error) {
 	if len(opts.TUFRootBytes) > 0 {
 		return opts.TUFRootBytes, nil
 	}
@@ -94,7 +95,7 @@ func resolveTUFRootBytes(ctx context.Context, opts Options, httpClient *http.Cli
 		if strings.HasPrefix(opts.TUFRootPath, "http://") && !opts.Insecure {
 			return nil, errors.New("trust: --tuf-root=http:// requires --insecure (no transport integrity); use https or a filesystem path")
 		}
-		return fetchRootFromURL(ctx, opts.TUFRootPath, opts.TUFRootChecksum, httpClient, log)
+		return fetchRootFromURL(ctx, opts.TUFRootPath, opts.TUFRootChecksum, httpClient)
 	}
 	b, err := os.ReadFile(opts.TUFRootPath)
 	if err != nil {
@@ -106,33 +107,37 @@ func resolveTUFRootBytes(ctx context.Context, opts Options, httpClient *http.Cli
 // Real TUF roots are 5-15 KB; anything above this is hostile or misconfigured.
 const maxTUFRootSize = 1 << 20
 
-func fetchRootFromURL(ctx context.Context, url, checksum string, httpClient *http.Client, log logger.Logger) ([]byte, error) {
+func fetchRootFromURL(ctx context.Context, rawURL, checksum string, httpClient *http.Client) ([]byte, error) {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return nil, fmt.Errorf("trust: parse tuf root url: %w", err)
+	}
+	safeURL := parsed.Redacted()
+
 	if checksum == "" {
-		log.WarnContext(ctx, "trust: TUF root fetched from URL without integrity check — consider passing --tuf-root-checksum",
-			"url", url,
-		)
+		return nil, fmt.Errorf("trust: --tuf-root=%s requires --tuf-root-checksum", safeURL)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
-		return nil, fmt.Errorf("trust: build request for %q: %w", url, err)
+		return nil, fmt.Errorf("trust: build request for %q: %w", safeURL, err)
 	}
 	resp, err := httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("trust: fetch tuf root from %q: %w", url, err)
+		return nil, fmt.Errorf("trust: fetch tuf root from %q: %w", safeURL, err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("trust: fetch tuf root from %q: unexpected status %d", url, resp.StatusCode)
+		return nil, fmt.Errorf("trust: fetch tuf root from %q: unexpected status %d", safeURL, resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxTUFRootSize+1))
 	if err != nil {
-		return nil, fmt.Errorf("trust: read tuf root body from %q: %w", url, err)
+		return nil, fmt.Errorf("trust: read tuf root body from %q: %w", safeURL, err)
 	}
 	if len(body) > maxTUFRootSize {
-		return nil, fmt.Errorf("trust: tuf root at %q exceeds %d bytes (possible hostile or misconfigured server)", url, maxTUFRootSize)
+		return nil, fmt.Errorf("trust: tuf root at %q exceeds %d bytes (possible hostile or misconfigured server)", safeURL, maxTUFRootSize)
 	}
 
 	if checksum != "" {

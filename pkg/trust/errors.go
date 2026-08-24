@@ -21,9 +21,8 @@ var (
 	ErrRekorKeyRequired        = errors.New("trust: --rekor-public-key required when --rekor-url is set in explicit mode")
 	ErrTSACertRequired         = errors.New("trust: --tsa-cert-chain required when --tsa-url is set in explicit mode")
 
-	ErrSigningConfigSourceConflict = errors.New("trust: --signing-config and --use-signing-config are mutually exclusive")
-	ErrSigningConfigNeedsTUF       = errors.New("trust: --use-signing-config requires --tuf-url (or the embedded public sigstore TUF default)")
-	ErrSigningConfigURLConflict    = errors.New(
+	ErrSigningConfigNeedsTUF    = errors.New("trust: --use-signing-config requires --tuf-url (or the embedded public sigstore TUF default)")
+	ErrSigningConfigURLConflict = errors.New(
 		"trust: explicit --fulcio-url/--rekor-url/--tsa-url cannot be combined with --use-signing-config or --signing-config; drop the explicit URL flags or set --use-signing-config=false",
 	)
 )

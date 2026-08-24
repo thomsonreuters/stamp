@@ -28,28 +28,14 @@ type SigningConfigResolver interface {
 }
 
 func NewSigningConfigResolver(opts Options, log logger.Logger) (SigningConfigResolver, error) {
-	byteSource := len(opts.SigningConfigBytes) > 0
-	pathSource := opts.SigningConfigPath != ""
-	tufSource := opts.UseSigningConfig
-
-	active := 0
-	for _, b := range []bool{byteSource, pathSource, tufSource} {
-		if b {
-			active++
-		}
-	}
-	if active > 1 {
-		return nil, ErrSigningConfigSourceConflict
-	}
-
 	switch {
-	case byteSource:
+	case len(opts.SigningConfigBytes) > 0:
 		log.Info("trust: signing config from bytes")
 		return &fileSigningConfigResolver{bytes: opts.SigningConfigBytes}, nil
-	case pathSource:
+	case opts.SigningConfigPath != "":
 		log.Info("trust: signing config from file", "path", opts.SigningConfigPath)
 		return &fileSigningConfigResolver{path: opts.SigningConfigPath}, nil
-	case tufSource:
+	case opts.UseSigningConfig:
 		url := opts.TUFURL
 		if url == "" {
 			url = DefaultTUFURL
@@ -99,7 +85,7 @@ func newTUFSigningConfigResolver(url string, opts Options, log logger.Logger) *t
 
 func (r *tufSigningConfigResolver) Resolve(ctx context.Context) (*root.SigningConfig, error) {
 	httpClient := NewHTTPClient(r.log, r.opts.Insecure)
-	rootBytes, err := resolveTUFRootBytes(ctx, r.opts, httpClient, r.log)
+	rootBytes, err := resolveTUFRootBytes(ctx, r.opts, httpClient)
 	if err != nil {
 		return nil, err
 	}

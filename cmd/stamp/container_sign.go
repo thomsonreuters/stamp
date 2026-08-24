@@ -63,6 +63,21 @@ Registry authentication:
       123456789012.dkr.ecr.us-east-1.amazonaws.com/app:v1 \
       --signer key --private-key ./cosign.key --bundle-output bundle.json`,
 	Args: cobra.ExactArgs(1),
+	PreRunE: func(cmd *cobra.Command, _ []string) error {
+		if cmd.Flags().Changed("trusted-root") && cmd.Flags().Changed("tuf-url") {
+			return errors.NewUsageError(
+				"choose one trust source",
+				"Use --trusted-root=<file> for a local trust file, or --tuf-url=<url> to fetch from TUF — not both.",
+			)
+		}
+		if cmd.Flags().Changed("signing-config") && cmd.Flags().Changed("use-signing-config") {
+			return errors.NewUsageError(
+				"--signing-config already loads from a file",
+				"Drop --use-signing-config; --signing-config takes precedence automatically.",
+			)
+		}
+		return nil
+	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if len(args) != 1 {
 			return errors.NewUsageError("exactly one image reference required",
@@ -88,8 +103,6 @@ func init() {
 	_ = plugincobra.ApplyFlagGroup(containerSignCmd, flags.TSAServerFlags)
 	_ = plugincobra.ApplyFlagGroup(containerSignCmd, flags.TrustFlags)
 	_ = plugincobra.ApplyFlagGroup(containerSignCmd, flags.ContainerSignFlags)
-
-	containerSignCmd.MarkFlagsMutuallyExclusive("trusted-root", "tuf-url")
 
 	containerCmd.AddCommand(containerSignCmd)
 }

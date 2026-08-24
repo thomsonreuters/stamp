@@ -40,7 +40,7 @@ func TestFetchRootFromURL_ChecksumMatch(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	got, err := fetchRootFromURL(context.TODO(), ts.URL+"/root.json", checksum, NewHTTPClient(logger.NewNoop(), false), logger.NewNoop())
+	got, err := fetchRootFromURL(context.TODO(), ts.URL+"/root.json", checksum, NewHTTPClient(logger.NewNoop(), false))
 	require.NoError(t, err)
 	assert.Equal(t, body, got)
 }
@@ -55,32 +55,44 @@ func TestFetchRootFromURL_ChecksumMismatch(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	_, err := fetchRootFromURL(context.TODO(), ts.URL+"/root.json", badChecksum, NewHTTPClient(logger.NewNoop(), false), logger.NewNoop())
+	_, err := fetchRootFromURL(context.TODO(), ts.URL+"/root.json", badChecksum, NewHTTPClient(logger.NewNoop(), false))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "checksum mismatch")
 }
 
-func TestFetchRootFromURL_NoChecksum_NoError(t *testing.T) {
-	body := []byte(`{"mediaType":"x"}`)
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write(body)
-	}))
-	defer ts.Close()
-
-	got, err := fetchRootFromURL(context.TODO(), ts.URL+"/root.json", "", NewHTTPClient(logger.NewNoop(), false), logger.NewNoop())
-	require.NoError(t, err)
-	assert.Equal(t, body, got)
+func TestFetchRootFromURL_NoChecksum_Rejected(t *testing.T) {
+	_, err := fetchRootFromURL(context.TODO(), "https://example.com/root.json", "", NewHTTPClient(logger.NewNoop(), false))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "requires --tuf-root-checksum")
 }
 
 func TestFetchRootFromURL_NonOKStatus(t *testing.T) {
+	body := []byte(`ignored`)
+	sum := sha256.Sum256(body)
+	checksum := hex.EncodeToString(sum[:])
+
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		http.NotFound(w, nil)
 	}))
 	defer ts.Close()
 
-	_, err := fetchRootFromURL(context.TODO(), ts.URL+"/missing.json", "", NewHTTPClient(logger.NewNoop(), false), logger.NewNoop())
+	_, err := fetchRootFromURL(context.TODO(), ts.URL+"/missing.json", checksum, NewHTTPClient(logger.NewNoop(), false))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "unexpected status")
+}
+
+func TestFetchRootFromURL_RedactsUserinfoOnError(t *testing.T) {
+	// Empty checksum triggers the required-checksum error, which echoes the URL
+	// via safeURL. The password must be redacted in that error.
+	_, err := fetchRootFromURL(
+		context.TODO(),
+		"https://user:supersecret@127.0.0.1:1/root.json",
+		"",
+		NewHTTPClient(logger.NewNoop(), false),
+	)
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), "supersecret", "password must not leak into error message")
+	assert.Contains(t, err.Error(), "xxxxx", "userinfo password should be redacted")
 }
 
 func TestResolveTUFRootBytes_BytesPreferredOverPath(t *testing.T) {
@@ -89,7 +101,6 @@ func TestResolveTUFRootBytes_BytesPreferredOverPath(t *testing.T) {
 		context.TODO(),
 		Options{TUFRootBytes: bytes, TUFRootPath: "/should/not/be/read"},
 		NewHTTPClient(logger.NewNoop(), false),
-		logger.NewNoop(),
 	)
 	require.NoError(t, err)
 	assert.Equal(t, bytes, got)
@@ -105,7 +116,6 @@ func TestResolveTUFRootBytes_FromFile(t *testing.T) {
 		context.TODO(),
 		Options{TUFRootPath: path},
 		NewHTTPClient(logger.NewNoop(), false),
-		logger.NewNoop(),
 	)
 	require.NoError(t, err)
 	assert.Equal(t, body, got)
@@ -116,7 +126,6 @@ func TestResolveTUFRootBytes_EmptyReturnsNil(t *testing.T) {
 		context.TODO(),
 		Options{},
 		NewHTTPClient(logger.NewNoop(), false),
-		logger.NewNoop(),
 	)
 	require.NoError(t, err)
 	assert.Nil(t, got)
@@ -127,7 +136,6 @@ func TestResolveTUFRootBytes_ChecksumWithoutSourceErrors(t *testing.T) {
 		context.TODO(),
 		Options{TUFRootChecksum: "abc123"},
 		NewHTTPClient(logger.NewNoop(), false),
-		logger.NewNoop(),
 	)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "--tuf-root-checksum has no effect without --tuf-root")
@@ -138,7 +146,6 @@ func TestResolveTUFRootBytes_HTTPURLRequiresInsecure(t *testing.T) {
 		context.TODO(),
 		Options{TUFRootPath: "http://plaintext.example.com/root.json"},
 		NewHTTPClient(logger.NewNoop(), false),
-		logger.NewNoop(),
 	)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "requires --insecure")
@@ -146,6 +153,9 @@ func TestResolveTUFRootBytes_HTTPURLRequiresInsecure(t *testing.T) {
 
 func TestResolveTUFRootBytes_HTTPURLWithInsecureFetches(t *testing.T) {
 	body := []byte(`{"mediaType":"x"}`)
+	sum := sha256.Sum256(body)
+	checksum := hex.EncodeToString(sum[:])
+
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write(body)
 	}))
@@ -153,12 +163,21 @@ func TestResolveTUFRootBytes_HTTPURLWithInsecureFetches(t *testing.T) {
 
 	got, err := resolveTUFRootBytes(
 		context.TODO(),
-		Options{TUFRootPath: ts.URL + "/root.json", Insecure: true},
+		Options{TUFRootPath: ts.URL + "/root.json", TUFRootChecksum: checksum, Insecure: true},
 		NewHTTPClient(logger.NewNoop(), true),
-		logger.NewNoop(),
 	)
 	require.NoError(t, err)
 	assert.Equal(t, body, got)
+}
+
+func TestResolveTUFRootBytes_URLWithoutChecksumRejected(t *testing.T) {
+	_, err := resolveTUFRootBytes(
+		context.TODO(),
+		Options{TUFRootPath: "https://example.com/root.json"},
+		NewHTTPClient(logger.NewNoop(), false),
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "requires --tuf-root-checksum")
 }
 
 func TestFetchRootFromURL_ExceedsMaxSize(t *testing.T) {
@@ -169,7 +188,7 @@ func TestFetchRootFromURL_ExceedsMaxSize(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	_, err := fetchRootFromURL(context.TODO(), ts.URL+"/root.json", "", NewHTTPClient(logger.NewNoop(), false), logger.NewNoop())
+	_, err := fetchRootFromURL(context.TODO(), ts.URL+"/root.json", "deadbeef", NewHTTPClient(logger.NewNoop(), false))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "exceeds")
 }
