@@ -50,8 +50,23 @@ func (s *Signer) SignBundle(ctx context.Context, payload []byte, payloadType str
 		Context:                    ctx,
 		CertificateProvider:        certProvider,
 		CertificateProviderOptions: certOpts,
-		TrustedRoot:                opts.TrustedRoot,
 	}
+
+	if opts.TrustedRoot != nil {
+		bundleOpts.TrustedRoot = opts.TrustedRoot
+		// For user-key signing, wrap so sign.Bundle's post-verify can find
+		// the signer's key via PublicKeyVerifier(hint). Without this,
+		// CompareKey against public sigstore's trusted_root always fails
+		// because trusted_root does not carry user keys.
+		if opts.Key != nil && opts.Key.Signer != nil {
+			wrapped, werr := newSignerKeyTrustedMaterial(bundleOpts.TrustedRoot, opts.Key.Signer.Public())
+			if werr != nil {
+				return nil, fmt.Errorf("sigstore sign: wrap trusted material: %w", werr)
+			}
+			bundleOpts.TrustedRoot = wrapped
+		}
+	}
+
 	if opts.Rekor != nil {
 		bundleOpts.TransparencyLogs = []sign.Transparency{
 			sign.NewRekor(&sign.RekorOptions{
