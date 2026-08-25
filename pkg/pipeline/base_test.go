@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/thomsonreuters/stamp/pkg/config"
 	"github.com/thomsonreuters/stamp/pkg/config/flags"
@@ -40,8 +39,7 @@ func TestNewBasePipeline(t *testing.T) {
 	assert.NotNil(t, p.metrics)
 	assert.NotNil(t, p.logger)
 	assert.NotNil(t, p.output)
-	assert.Nil(t, p.signer)
-	assert.Nil(t, p.transparency)
+	assert.Nil(t, p.sigstoreOpts)
 }
 
 func TestBasePipeline_HasWorkflowContext(t *testing.T) {
@@ -185,156 +183,29 @@ func TestBasePipeline_FinalizeMetrics(t *testing.T) {
 	metrics := p.FinalizeMetrics()
 
 	assert.False(t, p.metrics.EndTime.IsZero())
-	assert.Equal(t, p.metrics, metrics) // Verify it returns the same metrics instance
+	assert.Equal(t, p.metrics, metrics)
 }
 
-func TestBasePipeline_GetSigner_NoBackend(t *testing.T) {
+func TestBasePipeline_GetSigstoreOptions_NoBackend(t *testing.T) {
 	cfg := config.NewMockConfiguration()
 	cfg.On("GetString", flags.Signer).Return("")
 
 	p := NewBasePipeline(cfg, logger.NewNoop(), output.NewNoop())
-	signer, err := p.GetSigner(context.Background())
+	opts, err := p.GetSigstoreOptions(context.Background())
 
-	assert.Nil(t, signer)
+	assert.Nil(t, opts)
 	require.NoError(t, err)
 	cfg.AssertExpectations(t)
 }
 
-func TestBasePipeline_GetSigner_UnsupportedBackend(t *testing.T) {
+func TestBasePipeline_GetSigstoreOptions_UnsupportedBackend(t *testing.T) {
 	cfg := config.NewMockConfiguration()
 	cfg.On("GetString", flags.Signer).Return("unknown-backend")
 
 	p := NewBasePipeline(cfg, logger.NewNoop(), output.NewNoop())
-	signer, err := p.GetSigner(context.Background())
+	opts, err := p.GetSigstoreOptions(context.Background())
 
-	assert.Nil(t, signer)
+	assert.Nil(t, opts)
 	require.ErrorIs(t, err, ErrUnsupportedSigningBackend)
 	cfg.AssertExpectations(t)
-}
-
-func TestBasePipeline_GetSigner_CachesSigner(t *testing.T) {
-	cfg := config.NewMockConfiguration()
-	cfg.On("GetString", flags.Signer).Return("").Once()
-
-	p := NewBasePipeline(cfg, logger.NewNoop(), output.NewNoop())
-
-	// First call
-	signer1, err1 := p.GetSigner(context.Background())
-	assert.Nil(t, signer1)
-	require.NoError(t, err1)
-
-	// GetString should only be called once due to early nil return
-	cfg.AssertExpectations(t)
-}
-
-func TestBasePipeline_GetRekorClient_Disabled(t *testing.T) {
-	cfg := config.NewMockConfiguration()
-	cfg.On("GetBool", flags.TransparencyEnable).Return(false)
-
-	p := NewBasePipeline(cfg, logger.NewNoop(), output.NewNoop())
-	client, err := p.GetRekorClient()
-
-	assert.Nil(t, client)
-	require.NoError(t, err)
-	cfg.AssertExpectations(t)
-}
-
-func TestBasePipeline_GetRekorClient_MissingURL(t *testing.T) {
-	cfg := config.NewMockConfiguration()
-	cfg.On("GetBool", flags.TransparencyEnable).Return(true)
-	cfg.On("GetString", flags.RekorURL).Return("")
-
-	p := NewBasePipeline(cfg, logger.NewNoop(), output.NewNoop())
-	client, err := p.GetRekorClient()
-
-	assert.Nil(t, client)
-	require.ErrorIs(t, err, ErrRekorURLRequired)
-	cfg.AssertExpectations(t)
-}
-
-func TestBasePipeline_GetRekorClient_CachesClient(t *testing.T) {
-	cfg := config.NewMockConfiguration()
-	cfg.On("GetBool", flags.TransparencyEnable).Return(false).Once()
-
-	p := NewBasePipeline(cfg, logger.NewNoop(), output.NewNoop())
-
-	// First call
-	client1, err1 := p.GetRekorClient()
-	assert.Nil(t, client1)
-	require.NoError(t, err1)
-
-	// GetBool should only be called once due to early nil return
-	cfg.AssertExpectations(t)
-}
-
-func TestBasePipeline_GetSigner_FileBackend(t *testing.T) {
-	cfg := config.NewMockConfiguration()
-	cfg.On("GetString", flags.Signer).Return("key")
-	cfg.On("GetString", flags.PrivateKey).Return("/path/to/key")
-	cfg.On("GetString", flags.CryptographyKeyPassword).Return("password")
-	cfg.On("GetString", flags.CryptographyKeyPasswordFile).Return("")
-
-	p := NewBasePipeline(cfg, logger.NewNoop(), output.NewNoop())
-	_, err := p.GetSigner(context.Background())
-
-	// Will fail because the key file doesn't exist, but config is correctly read
-	require.Error(t, err)
-	cfg.AssertExpectations(t)
-}
-
-func TestBasePipeline_GetSigner_FulcioBackend(t *testing.T) {
-	cfg := config.NewMockConfiguration()
-	cfg.On("GetString", flags.Signer).Return("fulcio")
-	cfg.On("GetString", flags.FulcioURL).Return("https://fulcio.example.com")
-	cfg.On("GetString", flags.OIDCToken).Return("")
-	cfg.On("GetString", flags.OIDCTokenFile).Return("")
-	cfg.On("GetBool", flags.UseSpire).Return(false)
-	cfg.On("GetString", flags.SPIRESocket).Return("")
-	cfg.On("GetBool", flags.UseGitHub).Return(false)
-	cfg.On("GetBool", flags.Insecure).Return(false)
-
-	p := NewBasePipeline(cfg, logger.NewNoop(), output.NewNoop())
-	_, err := p.GetSigner(context.Background())
-
-	// Will fail because no token is available, but config is correctly read
-	require.Error(t, err)
-	cfg.AssertExpectations(t)
-}
-
-func TestBasePipeline_GetSigner_KeyBackend(t *testing.T) {
-	cfg := config.NewMockConfiguration()
-	cfg.On("GetString", flags.Signer).Return("key")
-	cfg.On("GetString", flags.PrivateKey).Return("/path/to/key")
-	cfg.On("GetString", flags.CryptographyKeyPassword).Return("")
-	cfg.On("GetString", flags.CryptographyKeyPasswordFile).Return("")
-
-	p := NewBasePipeline(cfg, logger.NewNoop(), output.NewNoop())
-	_, err := p.GetSigner(context.Background())
-
-	// Will fail because the key file doesn't exist, but config is correctly read
-	require.Error(t, err)
-	cfg.AssertExpectations(t)
-}
-
-func TestBasePipeline_GetRekorClient_WithURL(t *testing.T) {
-	cfg := config.NewMockConfiguration()
-	cfg.On("GetBool", flags.TransparencyEnable).Return(true)
-	cfg.On("GetString", flags.RekorURL).Return("https://rekor.example.com")
-	cfg.On("GetBool", flags.Insecure).Return(false)
-
-	p := NewBasePipeline(cfg, logger.NewNoop(), output.NewNoop())
-	client, err := p.GetRekorClient()
-
-	// Client should be created successfully
-	assert.NotNil(t, client)
-	require.NoError(t, err)
-	cfg.AssertExpectations(t)
-
-	// Verify caching - should return same client
-	cfg2 := config.NewMockConfiguration()
-	// No new calls expected due to caching
-	client2, err2 := p.GetRekorClient()
-	assert.Equal(t, client, client2)
-	require.NoError(t, err2)
-	mock.AssertExpectationsForObjects(t, cfg2)
 }

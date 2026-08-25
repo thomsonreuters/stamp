@@ -15,7 +15,6 @@
 package intoto
 
 import (
-	"context"
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
@@ -24,7 +23,6 @@ import (
 	"fmt"
 
 	"github.com/thomsonreuters/stamp/pkg/crypto/keys"
-	"github.com/thomsonreuters/stamp/pkg/signing"
 )
 
 const (
@@ -71,43 +69,6 @@ func NewEnvelope(statement *Statement) (*Envelope, error) {
 	}, nil
 }
 
-// Sign adds a signature to the envelope using the provided signer.
-func (e *Envelope) Sign(ctx context.Context, signer signing.Signer) error {
-	if signer == nil {
-		return ErrNilSigner
-	}
-
-	pae := e.preauthEncode()
-
-	signature, err := signer.Sign(ctx, pae)
-	if err != nil {
-		return fmt.Errorf("failed to sign payload: %w", err)
-	}
-
-	keyID, err := signer.KeyID()
-	if err != nil {
-		return fmt.Errorf("failed to get key ID: %w", err)
-	}
-
-	sig := Signature{
-		KeyID:     keyID,
-		Signature: base64.StdEncoding.EncodeToString(signature),
-	}
-
-	if certSigner, ok := signer.(signing.CertificateSigner); ok {
-		certPEM, err := certSigner.Certificate()
-		if err != nil {
-			return fmt.Errorf("failed to get certificate: %w", err)
-		}
-		if len(certPEM) > 0 {
-			sig.Certificate = base64.StdEncoding.EncodeToString(certPEM)
-		}
-	}
-
-	e.Signatures = append(e.Signatures, sig)
-	return nil
-}
-
 // ToJSON serializes the envelope to JSON.
 func (e *Envelope) ToJSON() ([]byte, error) {
 	return json.Marshal(e)
@@ -142,53 +103,6 @@ func (e *Envelope) GetStatement() (*Statement, error) {
 	}
 
 	return &statement, nil
-}
-
-// Verify verifies the signature using the provided verifier.
-func (e *Envelope) Verify(verifier Verifier) error {
-	if verifier == nil {
-		return ErrNilVerifier
-	}
-
-	if len(e.Signatures) == 0 {
-		return ErrNoSignatures
-	}
-
-	pae := e.preauthEncode()
-
-	for i, sig := range e.Signatures {
-		sigBytes, err := base64.StdEncoding.DecodeString(sig.Signature)
-		if err != nil {
-			return fmt.Errorf("failed to decode signature %d: %w", i, err)
-		}
-
-		if err := verifier.Verify(pae, sigBytes, sig.KeyID); err != nil {
-			return fmt.Errorf("signature %d verification failed: %w", i, err)
-		}
-	}
-
-	return nil
-}
-
-// preauthEncode implements the DSSE pre-authentication encoding
-// PAE(type, body) = "DSSEv1" + SP + LEN(type) + SP + type + SP + LEN(body) + SP + body.
-func (e *Envelope) preauthEncode() []byte {
-	payloadBytes, err := base64.StdEncoding.DecodeString(e.Payload)
-	if err != nil {
-		payloadBytes = []byte(e.Payload)
-	}
-
-	return fmt.Appendf(nil, "%s %d %s %d %s",
-		DSSEVersion,
-		len(e.PayloadType),
-		e.PayloadType,
-		len(payloadBytes),
-		string(payloadBytes))
-}
-
-// Verifier interface for verifying DSSE signatures.
-type Verifier interface {
-	Verify(payload, signature []byte, keyID string) error
 }
 
 // HasSignatures returns true if the envelope has any signatures.
@@ -236,36 +150,4 @@ func (e *Envelope) ExtractCertificate() (*x509.Certificate, error) {
 	}
 
 	return nil, ErrNoCertificate
-}
-
-// ExtractCertificates extracts all valid X.509 certificates from all signatures in the envelope.
-// Certificates can be either DER-encoded or PEM-encoded (both base64 wrapped).
-// For certificate chains, all certificates in the chain are included.
-// Returns an error if no valid certificates are found.
-func (e *Envelope) ExtractCertificates() ([]*x509.Certificate, error) {
-	var certificates []*x509.Certificate
-
-	for _, signature := range e.Signatures {
-		if signature.Certificate == "" {
-			continue
-		}
-
-		certificateBytes, err := base64.StdEncoding.DecodeString(signature.Certificate)
-		if err != nil {
-			continue
-		}
-
-		parsedCerts, err := keys.ParseCertificateChainFromBytes(certificateBytes)
-		if err != nil {
-			continue
-		}
-
-		certificates = append(certificates, parsedCerts...)
-	}
-
-	if len(certificates) == 0 {
-		return nil, ErrNoCertificate
-	}
-
-	return certificates, nil
 }

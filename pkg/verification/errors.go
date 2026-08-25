@@ -16,7 +16,6 @@ package verification
 
 import "errors"
 
-var (
-	// ErrFulcioURLRequired is returned when Fulcio URL is required but not provided.
-	ErrFulcioURLRequired = errors.New("fulcio URL is required for certificate verification")
-)
+// ErrNoTrustedMaterial is returned when the verifier is constructed without
+// a resolved trust root.
+var ErrNoTrustedMaterial = errors.New("no trusted material available for verification")

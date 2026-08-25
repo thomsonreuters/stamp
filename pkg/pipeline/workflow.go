@@ -16,6 +16,8 @@ package pipeline
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"time"
 
@@ -50,10 +52,12 @@ const (
 // can output results as individual attestations, a collection, or both.
 type WorkflowPipeline struct {
 	*BasePipeline
-	workflow         *config.Workflow
-	name             string
-	result           *Result
-	cachedCollection *intoto.Envelope // Cached signed collection (created once, reused for stdout/Rekor)
+	workflow *config.Workflow
+	name     string
+	result   *Result
+	// cachedCollection is signed once and reused across stdout, persist,
+	// and upload so all destinations reference the same tlog entry.
+	cachedCollection *CollectionResult
 }
 
 // HasWorkflowContext returns true as WorkflowPipeline always has workflow context.
@@ -65,15 +69,6 @@ func (p *WorkflowPipeline) HasWorkflowContext() bool {
 func (p *WorkflowPipeline) Execute(ctx context.Context) error {
 	p.logger.InfoContext(ctx, "starting workflow pipeline")
 	p.output.Progress("Executing workflow: %s", p.name)
-
-	// Ensure signer cleanup happens at the end
-	defer func() {
-		if p.signer != nil {
-			if err := p.signer.PostSign(ctx); err != nil {
-				p.logger.WarnContext(ctx, "signer cleanup failed", "error", err)
-			}
-		}
-	}()
 
 	wf, err := p.loadWorkflow()
 	if err != nil {
@@ -88,6 +83,17 @@ func (p *WorkflowPipeline) Execute(ctx context.Context) error {
 			return err
 		}
 		p.logger.WarnContext(ctx, "workflow completed with errors", "error", err)
+	}
+
+	// Workflow owns signing so the same signer is reused across all
+	// per-attestor bundles and the collection.
+	if err := p.signAttestations(ctx); err != nil {
+		return pkgerrors.WrapPipeline(err, "signing", p.name).
+			Suggest(
+				"Check signer configuration (file/fulcio)",
+				"Verify signing key exists and is accessible",
+				"Check network connectivity for Fulcio and Rekor",
+			)
 	}
 
 	// Ensure collection is created for collection/both modes regardless of
@@ -225,6 +231,58 @@ func (p *WorkflowPipeline) createAttestorOverlay(workflowOverlay config.Configur
 	return config.New(workflowOverlay, overrides)
 }
 
+// signAttestations signs each successful attestor's statement into a sigstore
+// Bundle v0.3. Per-attestor pipelines skip their own signing when inside a
+// workflow so options resolution + Rekor upload happen once per workflow run.
+func (p *WorkflowPipeline) signAttestations(ctx context.Context) error {
+	opts, err := p.GetSigstoreOptions(ctx)
+	if err != nil {
+		return err
+	}
+	if opts == nil {
+		p.logger.DebugContext(ctx, "no signer configured — leaving attestations unsigned")
+		return nil
+	}
+
+	signer := p.GetSigstoreSigner()
+	failurePolicy := p.GetFailurePolicy()
+
+	for i := range p.result.Attestations {
+		att := &p.result.Attestations[i]
+		if att.Error != nil {
+			continue
+		}
+		if len(att.StatementJSON) == 0 {
+			continue
+		}
+		if len(att.BundleJSON) > 0 {
+			continue
+		}
+
+		start := time.Now()
+		res, err := signer.SignBundle(ctx, att.StatementJSON, intoto.PayloadType, *opts)
+		duration := time.Since(start)
+		p.RecordSigningDuration(duration)
+		if opts.Rekor != nil {
+			p.RecordRekorUploadDuration(duration)
+		}
+
+		if err != nil {
+			wrapped := pkgerrors.WrapWithContext(err, "signing", "sigstore_bundle",
+				fmt.Sprintf("failed to sign bundle for attestor: %s", att.AttestorName))
+			if failurePolicy == types.FailurePolicyFailFast {
+				return wrapped
+			}
+			att.Error = wrapped
+			p.logger.WarnContext(ctx, "continuing despite bundle signing failure",
+				"attestor", att.AttestorName, "error", err)
+			continue
+		}
+		att.BundleJSON = res.BundleJSON
+	}
+	return nil
+}
+
 // handleStdoutOutput writes attestations to stdout based on the configured output mode.
 func (p *WorkflowPipeline) handleStdoutOutput(ctx context.Context, overlayConfig config.ConfigurationIface) error {
 	if !p.output.IsDataOutputEnabled() {
@@ -248,8 +306,8 @@ func (p *WorkflowPipeline) handleStdoutOutput(ctx context.Context, overlayConfig
 	switch outputMode {
 	case OutputModeIndividual:
 		for _, result := range successful {
-			if result.Envelope != nil {
-				dataToOutput = append(dataToOutput, result.Envelope)
+			if payload := chooseStdoutPayload(result); payload != nil {
+				dataToOutput = append(dataToOutput, payload)
 			}
 		}
 
@@ -259,12 +317,14 @@ func (p *WorkflowPipeline) handleStdoutOutput(ctx context.Context, overlayConfig
 			return pkgerrors.WrapWithContext(err, "output", "create_collection",
 				"failed to create collection for stdout output")
 		}
-		dataToOutput = []any{collection}
+		if payload := collectionStdoutPayload(collection); payload != nil {
+			dataToOutput = []any{payload}
+		}
 
 	case OutputModeBoth:
 		for _, result := range successful {
-			if result.Envelope != nil {
-				dataToOutput = append(dataToOutput, result.Envelope)
+			if payload := chooseStdoutPayload(result); payload != nil {
+				dataToOutput = append(dataToOutput, payload)
 			}
 		}
 		collection, err := p.getOrCreateSignedCollection(ctx, successful)
@@ -272,11 +332,17 @@ func (p *WorkflowPipeline) handleStdoutOutput(ctx context.Context, overlayConfig
 			return pkgerrors.WrapWithContext(err, "output", "create_collection",
 				"failed to create collection for stdout output")
 		}
-		dataToOutput = append(dataToOutput, collection)
+		if payload := collectionStdoutPayload(collection); payload != nil {
+			dataToOutput = append(dataToOutput, payload)
+		}
 
 	default:
 		return pkgerrors.NewWithContext("output", "stdout_write",
 			fmt.Sprintf("invalid output mode: %s", outputMode))
+	}
+
+	if len(dataToOutput) == 0 {
+		return nil
 	}
 
 	p.logger.DebugContext(ctx, "writing attestations to stdout", "mode", outputMode, "count", len(dataToOutput))
@@ -292,48 +358,93 @@ func (p *WorkflowPipeline) handleStdoutOutput(ctx context.Context, overlayConfig
 	return nil
 }
 
-// getOrCreateSignedCollection returns a cached collection or creates one if not cached.
-// This ensures the same collection (same timestamp, same fingerprint) is used for both
-// stdout output and Rekor upload, allowing users to fetch the exact collection they saved.
-func (p *WorkflowPipeline) getOrCreateSignedCollection(ctx context.Context, successful []EnvelopeResult) (*intoto.Envelope, error) {
-	// Return cached collection if available
+func chooseStdoutPayload(result EnvelopeResult) any {
+	if len(result.BundleJSON) > 0 {
+		return rawJSON(result.BundleJSON)
+	}
+	if len(result.StatementJSON) > 0 {
+		return rawJSON(result.StatementJSON)
+	}
+	return nil
+}
+
+func collectionStdoutPayload(collection *CollectionResult) any {
+	if collection == nil {
+		return nil
+	}
+	if len(collection.BundleJSON) > 0 {
+		return rawJSON(collection.BundleJSON)
+	}
+	if len(collection.StatementJSON) > 0 {
+		return rawJSON(collection.StatementJSON)
+	}
+	return nil
+}
+
+// getOrCreateSignedCollection returns a cached collection or creates one if
+// not cached. Caching keeps the same timestamp/fingerprint across stdout,
+// persist, and tlog upload so users can fetch the exact collection they saved.
+func (p *WorkflowPipeline) getOrCreateSignedCollection(ctx context.Context, successful []EnvelopeResult) (*CollectionResult, error) {
 	if p.cachedCollection != nil {
 		p.logger.DebugContext(ctx, "reusing cached collection")
 		return p.cachedCollection, nil
 	}
 
-	envelopes := make([]*intoto.Envelope, 0, len(successful))
+	statements := make([][]byte, 0, len(successful))
 	for _, result := range successful {
-		if result.Envelope != nil {
-			envelopes = append(envelopes, result.Envelope)
+		if len(result.StatementJSON) == 0 {
+			continue
 		}
+		statements = append(statements, result.StatementJSON)
 	}
-	if len(envelopes) == 0 {
-		return nil, pkgerrors.NewWithContext("workflow", "create_collection", "no envelopes available for collection")
+	if len(statements) == 0 {
+		return nil, pkgerrors.NewWithContext("workflow", "create_collection",
+			"no statements available for collection")
 	}
 
 	p.logger.DebugContext(ctx, "creating new collection")
-	collection, err := CreateStructuredCollectionEnvelope(p.name, envelopes)
+	stmt, err := CreateStructuredCollectionStatement(p.name, statements)
 	if err != nil {
-		return nil, pkgerrors.WrapWithContext(err, "workflow", "create_collection", "failed to create collection envelope")
+		return nil, pkgerrors.WrapWithContext(err, "workflow", "create_collection",
+			"failed to create collection statement")
+	}
+	statementJSON, err := stmt.ToJSON()
+	if err != nil {
+		return nil, pkgerrors.WrapWithContext(err, "workflow", "serialize_collection",
+			"failed to serialize collection statement")
 	}
 
-	signer, err := p.GetSigner(ctx)
-	if err != nil {
-		return nil, pkgerrors.WrapWithContext(err, "workflow", "get_signer", "failed to get signer for collection")
+	collection := &CollectionResult{
+		StatementJSON: statementJSON,
+		WorkflowName:  p.name,
 	}
-	if signer != nil {
-		p.logger.DebugContext(ctx, "signing collection attestation")
-		if err := collection.Sign(ctx, signer); err != nil {
-			return nil, pkgerrors.WrapWithContext(err, "workflow", "sign_collection", "failed to sign collection")
+
+	opts, err := p.GetSigstoreOptions(ctx)
+	if err != nil {
+		return nil, pkgerrors.WrapWithContext(err, "workflow", "get_sigstore_options",
+			"failed to build sigstore options for collection")
+	}
+	if opts != nil {
+		start := time.Now()
+		p.logger.DebugContext(ctx, "signing collection bundle")
+		res, err := p.GetSigstoreSigner().SignBundle(ctx, statementJSON, intoto.PayloadType, *opts)
+		duration := time.Since(start)
+		p.RecordSigningDuration(duration)
+		if opts.Rekor != nil {
+			p.RecordRekorUploadDuration(duration)
 		}
+		if err != nil {
+			return nil, pkgerrors.WrapWithContext(err, "workflow", "sign_collection",
+				"failed to sign collection bundle")
+		}
+		collection.BundleJSON = res.BundleJSON
 	}
 
 	p.cachedCollection = collection
 	return collection, nil
 }
 
-// ensureCollection creates the collection envelope when the workflow output mode
+// ensureCollection creates the collection bundle when the workflow output mode
 // requires it (collection or both) and there are successful attestations.
 func (p *WorkflowPipeline) ensureCollection(ctx context.Context, overlayConfig config.ConfigurationIface) error {
 	outputMode := OutputMode(overlayConfig.GetString(flags.OutputMode))
@@ -350,11 +461,8 @@ func (p *WorkflowPipeline) ensureCollection(ctx context.Context, overlayConfig c
 	if err != nil {
 		return pkgerrors.WrapWithContext(err, "workflow", "create_collection", "failed to create collection for workflow")
 	}
-	p.result.Collections = append(p.result.Collections, CollectionResult{
-		Envelope:     collection,
-		WorkflowName: p.name,
-	})
-	return err
+	p.result.Collections = append(p.result.Collections, *collection)
+	return nil
 }
 
 // handleOutput orchestrates stdout, persist, and Rekor output based on workflow configuration.
@@ -370,13 +478,6 @@ func (p *WorkflowPipeline) handleOutput(ctx context.Context, overlayConfig confi
 
 	if err := p.handlePersistOutput(ctx, overlayConfig); err != nil {
 		p.logger.ErrorContext(ctx, "failed to persist output", "error", err)
-		if failurePolicy == types.FailurePolicyFailFast {
-			return err
-		}
-	}
-
-	if err := p.handleRekorOutput(ctx, overlayConfig); err != nil {
-		p.logger.ErrorContext(ctx, "failed to upload to Rekor", "error", err)
 		if failurePolicy == types.FailurePolicyFailFast {
 			return err
 		}
@@ -432,22 +533,24 @@ func (p *WorkflowPipeline) handlePersistOutput(ctx context.Context, overlayConfi
 	return nil
 }
 
-// persistIndividualAttestations writes each attestation to a separate file.
+// persistIndividualAttestations writes each attestation bundle to a separate file.
 func (p *WorkflowPipeline) persistIndividualAttestations(ctx context.Context, manager *destination.Manager, successful []EnvelopeResult) error {
 	for _, result := range successful {
-		if result.Envelope == nil {
+		if len(result.BundleJSON) == 0 {
+			p.logger.DebugContext(ctx, "skipping unsigned attestation for persist",
+				"attestor", result.AttestorName)
 			continue
 		}
 
-		sha256Hash, _ := result.Envelope.SHA256()
+		sum := sha256.Sum256(result.BundleJSON)
 
 		attestation := &destination.Attestation{
 			ID:            uuid.New().String(),
 			AttestorID:    result.AttestorName,
 			PredicateType: result.PredicateType,
-			Envelope:      result.Envelope,
+			Bundle:        result.BundleJSON,
 			Timestamp:     time.Now(),
-			SHA256:        sha256Hash,
+			SHA256:        hex.EncodeToString(sum[:]),
 			WorkflowName:  p.name,
 		}
 
@@ -476,7 +579,7 @@ func (p *WorkflowPipeline) persistIndividualAttestations(ctx context.Context, ma
 	return nil
 }
 
-// persistCollection writes the collection attestation to a file.
+// persistCollection writes the collection bundle to a file.
 func (p *WorkflowPipeline) persistCollection(ctx context.Context, manager *destination.Manager, successful []EnvelopeResult) error {
 	collection, err := p.getOrCreateSignedCollection(ctx, successful)
 	if err != nil {
@@ -484,15 +587,20 @@ func (p *WorkflowPipeline) persistCollection(ctx context.Context, manager *desti
 			"failed to create collection for persist")
 	}
 
-	sha256Hash, _ := collection.SHA256()
+	if len(collection.BundleJSON) == 0 {
+		p.logger.DebugContext(ctx, "no signed collection bundle available to persist")
+		return nil
+	}
+
+	sum := sha256.Sum256(collection.BundleJSON)
 
 	attestation := &destination.Attestation{
 		ID:            uuid.New().String(),
 		AttestorID:    "collection",
 		PredicateType: collectionv1.CollectionV1URI,
-		Envelope:      collection,
+		Bundle:        collection.BundleJSON,
 		Timestamp:     time.Now(),
-		SHA256:        sha256Hash,
+		SHA256:        hex.EncodeToString(sum[:]),
 		WorkflowName:  p.name,
 	}
 
@@ -516,151 +624,6 @@ func (p *WorkflowPipeline) persistCollection(ctx context.Context, manager *desti
 		p.output.Success("Collection saved to: %s", wr.Location)
 	}
 
-	return nil
-}
-
-// handleRekorOutput uploads attestations to the Rekor transparency log based on output mode and upload target.
-//
-//nolint:gocognit // Rekor output handling requires multiple conditional paths for different output formats
-func (p *WorkflowPipeline) handleRekorOutput(ctx context.Context, overlayConfig config.ConfigurationIface) error {
-	if !overlayConfig.GetBool(flags.TransparencyEnable) {
-		p.logger.DebugContext(ctx, "transparency log disabled")
-		return nil
-	}
-
-	outputMode := OutputMode(overlayConfig.GetString(flags.OutputMode))
-	if outputMode == "" {
-		outputMode = OutputModeIndividual
-	}
-	successful := p.result.Successful()
-
-	rekorTarget := overlayConfig.GetString(flags.RekorUploadTarget)
-	uploadIndividual := rekorTarget == "individual" || rekorTarget == "both"
-	uploadCollection := rekorTarget == "collection" || rekorTarget == "both"
-
-	switch outputMode {
-	case OutputModeIndividual:
-		if uploadIndividual {
-			if err := p.uploadIndividualToRekor(ctx, successful); err != nil {
-				p.logger.WarnContext(ctx, "failed to upload individual attestations to Rekor", "error", err)
-				if p.GetFailurePolicy() == types.FailurePolicyFailFast {
-					return err
-				}
-			}
-		}
-
-	case OutputModeCollection:
-		if uploadCollection {
-			if err := p.uploadCollectionToRekor(ctx, successful); err != nil {
-				p.logger.WarnContext(ctx, "failed to upload collection to Rekor", "error", err)
-				if p.GetFailurePolicy() == types.FailurePolicyFailFast {
-					return err
-				}
-			}
-		}
-
-	case OutputModeBoth:
-		if uploadIndividual {
-			if err := p.uploadIndividualToRekor(ctx, successful); err != nil {
-				p.logger.WarnContext(ctx, "failed to upload individual attestations to Rekor", "error", err)
-				if p.GetFailurePolicy() == types.FailurePolicyFailFast {
-					return err
-				}
-			}
-		}
-		if uploadCollection {
-			if err := p.uploadCollectionToRekor(ctx, successful); err != nil {
-				p.logger.WarnContext(ctx, "failed to upload collection to Rekor", "error", err)
-				if p.GetFailurePolicy() == types.FailurePolicyFailFast {
-					return err
-				}
-			}
-		}
-	}
-
-	return nil
-}
-
-// uploadCollectionToRekor uploads a bundled collection of attestations to the Rekor transparency log.
-func (p *WorkflowPipeline) uploadCollectionToRekor(ctx context.Context, successful []EnvelopeResult) error {
-	client, err := p.GetRekorClient()
-	if err != nil {
-		return pkgerrors.WrapWithContext(err, "workflow", "get_rekor_client", "failed to get rekor client")
-	}
-	if client == nil {
-		p.logger.DebugContext(ctx, "rekor not configured")
-		return nil
-	}
-
-	collection, err := p.getOrCreateSignedCollection(ctx, successful)
-	if err != nil {
-		return pkgerrors.WrapWithContext(err, "workflow", "create_collection", "failed to create collection for rekor upload")
-	}
-
-	p.logger.InfoContext(ctx, "uploading collection to transparency log")
-	start := time.Now()
-	publicKeyPath := p.config.GetString(flags.PublicKey)
-	entry, err := client.Upload(ctx, collection, publicKeyPath, nil)
-	duration := time.Since(start)
-	p.RecordRekorUploadDuration(duration)
-
-	if err != nil {
-		return pkgerrors.WrapWithContext(err, "workflow", "upload_rekor", "failed to upload collection to rekor")
-	}
-
-	p.logger.InfoContext(ctx, "collection uploaded to transparency log",
-		"entry_uuid", entry.UUID, "log_index", entry.LogIndex, "duration_ms", duration.Milliseconds())
-	p.output.Success("Collection uploaded to transparency log (UUID: %s)", entry.UUID)
-
-	return nil
-}
-
-// uploadIndividualToRekor uploads each successful attestation separately to the Rekor transparency log.
-func (p *WorkflowPipeline) uploadIndividualToRekor(ctx context.Context, successful []EnvelopeResult) error {
-	client, err := p.GetRekorClient()
-	if err != nil {
-		return pkgerrors.WrapWithContext(err, "workflow", "get_rekor_client", "failed to get rekor client")
-	}
-	if client == nil {
-		p.logger.DebugContext(ctx, "rekor not configured")
-		return nil
-	}
-
-	p.logger.InfoContext(ctx, "uploading individual attestations to transparency log")
-	publicKeyPath := p.config.GetString(flags.PublicKey)
-	var uploadErrors []error
-
-	for i, result := range successful {
-		if result.Envelope == nil {
-			continue
-		}
-
-		start := time.Now()
-		p.logger.DebugContext(ctx, "uploading attestation to transparency log", "index", i)
-
-		entry, err := client.Upload(ctx, result.Envelope, publicKeyPath, nil)
-		duration := time.Since(start)
-		p.RecordRekorUploadDuration(duration)
-
-		if err != nil {
-			uploadErrors = append(uploadErrors, pkgerrors.WrapWithContext(err, "workflow", "upload_individual_rekor",
-				fmt.Sprintf("failed to upload attestation %d to rekor", i)))
-			if p.GetFailurePolicy() == types.FailurePolicyFailFast {
-				return pkgerrors.WrapWithContext(err, "workflow", "upload_individual_rekor_fast_fail",
-					fmt.Sprintf("failed to upload individual attestation %d to rekor", i))
-			}
-			p.logger.WarnContext(ctx, "failed to upload attestation to Rekor", "index", i, "error", err)
-		} else {
-			p.logger.InfoContext(ctx, "attestation uploaded to transparency log",
-				"index", i, "entry_uuid", entry.UUID, "log_index", entry.LogIndex, "duration_ms", duration.Milliseconds())
-			p.output.Success("Attestation %d uploaded to transparency log (UUID: %s)", i, entry.UUID)
-		}
-	}
-
-	if len(uploadErrors) > 0 {
-		return pkgerrors.NewWithContext("workflow", "upload_individual_rekor_batch",
-			fmt.Sprintf("some individual attestations failed to upload to rekor: %d errors", len(uploadErrors)))
-	}
 	return nil
 }
 

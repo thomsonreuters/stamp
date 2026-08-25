@@ -21,15 +21,6 @@ var (
 	// ErrNilStatement is returned when attempting to create an envelope with a nil statement.
 	ErrNilStatement = errors.New("statement cannot be nil")
 
-	// ErrNilSigner is returned when attempting to sign with a nil signer.
-	ErrNilSigner = errors.New("signer cannot be nil")
-
-	// ErrNilVerifier is returned when attempting to verify with a nil verifier.
-	ErrNilVerifier = errors.New("verifier cannot be nil")
-
-	// ErrNoSignatures is returned when verifying an envelope with no signatures.
-	ErrNoSignatures = errors.New("no signatures found in envelope")
-
 	// ErrNoCertificate is returned when no valid certificate is found in signatures.
 	ErrNoCertificate = errors.New("no valid certificate found in signatures")
 )

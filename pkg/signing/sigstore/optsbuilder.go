@@ -26,7 +26,6 @@ import (
 	"github.com/thomsonreuters/stamp/pkg/crypto/keys"
 	pkgerrors "github.com/thomsonreuters/stamp/pkg/errors"
 	"github.com/thomsonreuters/stamp/pkg/logger"
-	"github.com/thomsonreuters/stamp/pkg/signing"
 	"github.com/thomsonreuters/stamp/pkg/signing/fulcio"
 	"github.com/thomsonreuters/stamp/pkg/trust"
 	"github.com/thomsonreuters/stamp/pkg/types"
@@ -221,7 +220,7 @@ func BuildKeyOptions(cfg config.ConfigurationIface) (*KeyOptions, error) {
 
 // BuildFulcioOptions resolves the OIDC token and returns FulcioOptions.
 func BuildFulcioOptions(ctx context.Context, cfg config.ConfigurationIface, fulcioURL string) (*FulcioOptions, error) {
-	fulcioCfg := signing.FulcioSignerConfig{
+	fulcioCfg := fulcio.SignerConfig{
 		FulcioURL:        fulcioURL,
 		Token:            cfg.GetString(flags.OIDCToken),
 		TokenPath:        cfg.GetString(flags.OIDCTokenFile),

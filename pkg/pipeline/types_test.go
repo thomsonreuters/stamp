@@ -19,7 +19,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/thomsonreuters/stamp/pkg/intoto"
 )
 
 //nolint:dupl // Table-driven tests have similar structure but test different result types
@@ -37,25 +36,25 @@ func TestResult_Successful(t *testing.T) {
 		{
 			name: "all successful",
 			results: []EnvelopeResult{
-				{Envelope: &intoto.Envelope{}, Error: nil},
-				{Envelope: &intoto.Envelope{}, Error: nil},
+				{BundleJSON: []byte("{}"), Error: nil},
+				{BundleJSON: []byte("{}"), Error: nil},
 			},
 			expected: 2,
 		},
 		{
 			name: "all failed",
 			results: []EnvelopeResult{
-				{Envelope: nil, Error: errors.New("error1")},
-				{Envelope: nil, Error: errors.New("error2")},
+				{Error: errors.New("error1")},
+				{Error: errors.New("error2")},
 			},
 			expected: 0,
 		},
 		{
 			name: "mixed results",
 			results: []EnvelopeResult{
-				{Envelope: &intoto.Envelope{}, Error: nil},
-				{Envelope: nil, Error: errors.New("error")},
-				{Envelope: &intoto.Envelope{}, Error: nil},
+				{BundleJSON: []byte("{}"), Error: nil},
+				{Error: errors.New("error")},
+				{BundleJSON: []byte("{}"), Error: nil},
 			},
 			expected: 2,
 		},
@@ -88,25 +87,25 @@ func TestResult_Failed(t *testing.T) {
 		{
 			name: "all successful",
 			results: []EnvelopeResult{
-				{Envelope: &intoto.Envelope{}, Error: nil},
-				{Envelope: &intoto.Envelope{}, Error: nil},
+				{BundleJSON: []byte("{}"), Error: nil},
+				{BundleJSON: []byte("{}"), Error: nil},
 			},
 			expected: 0,
 		},
 		{
 			name: "all failed",
 			results: []EnvelopeResult{
-				{Envelope: nil, Error: errors.New("error1")},
-				{Envelope: nil, Error: errors.New("error2")},
+				{Error: errors.New("error1")},
+				{Error: errors.New("error2")},
 			},
 			expected: 2,
 		},
 		{
 			name: "mixed results",
 			results: []EnvelopeResult{
-				{Envelope: &intoto.Envelope{}, Error: nil},
-				{Envelope: nil, Error: errors.New("error")},
-				{Envelope: &intoto.Envelope{}, Error: nil},
+				{BundleJSON: []byte("{}"), Error: nil},
+				{Error: errors.New("error")},
+				{BundleJSON: []byte("{}"), Error: nil},
 			},
 			expected: 1,
 		},
@@ -124,10 +123,7 @@ func TestResult_Failed(t *testing.T) {
 	}
 }
 
-func TestResult_Envelopes(t *testing.T) {
-	env1 := &intoto.Envelope{}
-	env2 := &intoto.Envelope{}
-
+func TestResult_Bundles(t *testing.T) {
 	tests := []struct {
 		name     string
 		results  []EnvelopeResult
@@ -139,39 +135,31 @@ func TestResult_Envelopes(t *testing.T) {
 			expected: 0,
 		},
 		{
-			name: "all with envelopes",
+			name: "all with bundles",
 			results: []EnvelopeResult{
-				{Envelope: env1, Error: nil},
-				{Envelope: env2, Error: nil},
+				{BundleJSON: []byte(`{"a":1}`), Error: nil},
+				{BundleJSON: []byte(`{"b":2}`), Error: nil},
 			},
 			expected: 2,
 		},
 		{
-			name: "some nil envelopes",
+			name: "some without bundles",
 			results: []EnvelopeResult{
-				{Envelope: env1, Error: nil},
-				{Envelope: nil, Error: errors.New("error")},
-				{Envelope: env2, Error: nil},
+				{BundleJSON: []byte(`{"a":1}`), Error: nil},
+				{Error: errors.New("error")},
+				{BundleJSON: []byte(`{"c":3}`), Error: nil},
 			},
 			expected: 2,
-		},
-		{
-			name: "all nil envelopes",
-			results: []EnvelopeResult{
-				{Envelope: nil, Error: errors.New("error1")},
-				{Envelope: nil, Error: errors.New("error2")},
-			},
-			expected: 0,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := &Result{Attestations: tt.results}
-			envelopes := r.Envelopes()
-			assert.Len(t, envelopes, tt.expected)
-			for _, e := range envelopes {
-				assert.NotNil(t, e)
+			bundles := r.Bundles()
+			assert.Len(t, bundles, tt.expected)
+			for _, b := range bundles {
+				assert.NotEmpty(t, b)
 			}
 		})
 	}
@@ -194,24 +182,24 @@ func TestResult_Errors(t *testing.T) {
 		{
 			name: "no errors",
 			results: []EnvelopeResult{
-				{Envelope: &intoto.Envelope{}, Error: nil},
-				{Envelope: &intoto.Envelope{}, Error: nil},
+				{BundleJSON: []byte("{}"), Error: nil},
+				{BundleJSON: []byte("{}"), Error: nil},
 			},
 			expected: 0,
 		},
 		{
 			name: "all errors",
 			results: []EnvelopeResult{
-				{Envelope: nil, Error: err1},
-				{Envelope: nil, Error: err2},
+				{Error: err1},
+				{Error: err2},
 			},
 			expected: 2,
 		},
 		{
 			name: "mixed",
 			results: []EnvelopeResult{
-				{Envelope: &intoto.Envelope{}, Error: nil},
-				{Envelope: nil, Error: err1},
+				{BundleJSON: []byte("{}"), Error: nil},
+				{Error: err1},
 			},
 			expected: 1,
 		},

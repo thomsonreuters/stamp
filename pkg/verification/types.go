@@ -17,12 +17,12 @@ package verification
 import (
 	"context"
 
-	"github.com/thomsonreuters/stamp/pkg/intoto"
-	"github.com/thomsonreuters/stamp/pkg/types"
+	"github.com/sigstore/sigstore-go/pkg/bundle"
 )
 
+// VerifierIface is the public verifier interface.
 type VerifierIface interface {
-	Verify(ctx context.Context, envelope *intoto.Envelope) (*VerificationResult, error)
+	Verify(ctx context.Context, b *bundle.Bundle) (*VerificationResult, error)
 }
 
 // VerificationResult represents the result of attestation verification.
@@ -38,23 +38,27 @@ type VerificationResult struct {
 	AttestationPath string `json:"attestation_path,omitempty"`
 	AttestationHash string `json:"attestation_hash,omitempty"`
 	RekorEntryUUID  string `json:"rekor_entry_uuid,omitempty"`
+
+	VerifiedSAN    string `json:"verified_san,omitempty"`
+	VerifiedIssuer string `json:"verified_issuer,omitempty"`
 }
 
 // VerificationConfig holds configuration for verification.
 type VerificationConfig struct {
-	// Signature verification
-	PublicKeyPath string
-
-	// Rekor verification
-	RekorURL    string
+	// VerifyRekor requires the bundle to include a Rekor tlog inclusion proof.
 	VerifyRekor bool
 
-	// Fulcio configuration
-	FulcioURL string
+	// RequireSCT enforces embedded SignedCertificateTimestamp on the leaf.
+	RequireSCT bool
 
-	// Temporal validation policy for Rekor entries
-	RekorTemporalPolicy types.TemporalPolicy
+	// Identity policy: exact-match value or regexp for the leaf cert's SAN
+	// and OIDC issuer. When all four are empty, identity checking is left
+	// unenforced.
+	ExpectedSAN         string
+	ExpectedSANRegex    string
+	ExpectedIssuer      string
+	ExpectedIssuerRegex string
 
-	// Security settings
-	Insecure bool
+	// AllowUnverifiedIdentity opts out of identity verification (unsafe).
+	AllowUnverifiedIdentity bool
 }

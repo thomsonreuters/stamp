@@ -317,11 +317,27 @@ const (
 // ============================================================================
 
 const (
-	// VerifyPublicKey specifies path to public key file for signature verification.
-	VerifyPublicKey = "commands.verify.public_key"
-
 	// VerifyOutputFile saves detailed verification result to JSON file.
 	VerifyOutputFile = "commands.verify.output_file"
+
+	// VerifyExpectedSAN is the exact SubjectAlternativeName the signing
+	// certificate must match.
+	VerifyExpectedSAN = "commands.verify.expected_san"
+
+	// VerifyExpectedSANRegex is a regexp the signing certificate SAN must
+	// match.
+	VerifyExpectedSANRegex = "commands.verify.expected_san_regex"
+
+	// VerifyExpectedIssuer is the exact OIDC issuer the signing certificate
+	// must carry.
+	VerifyExpectedIssuer = "commands.verify.expected_issuer"
+
+	// VerifyExpectedIssuerRegex is a regexp the signing certificate OIDC
+	// issuer must match.
+	VerifyExpectedIssuerRegex = "commands.verify.expected_issuer_regex"
+
+	// VerifyAllowUnverifiedIdentity skips identity checks (unsafe).
+	VerifyAllowUnverifiedIdentity = "commands.verify.allow_unverified_identity"
 )
 
 // ============================================================================
