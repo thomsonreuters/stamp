@@ -133,10 +133,13 @@ func (c *Config) GetFileMode() (os.FileMode, error) {
 }
 
 // ResolvePath resolves template variables in the path.
-func (c *Config) ResolvePath(attestation *destination.Attestation, workflowName string) string {
-	path := destination.ResolveTemplate(c.Path, attestation, workflowName)
+func (c *Config) ResolvePath(attestation *destination.Attestation, workflowName string) (string, error) {
+	path, err := destination.ResolveTemplate(c.Path, attestation, workflowName)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve path template: %w", err)
+	}
 	path = destination.ExpandMetadata(path, c.Metadata)
-	return path
+	return path, nil
 }
 
 // configFromMap converts a configuration map to a Config struct.

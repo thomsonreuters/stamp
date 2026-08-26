@@ -91,9 +91,14 @@ var templateVarRegex = regexp.MustCompile(`\$\{([a-z_]+)\}|{{\s*\.([a-z_]+)\s*}}
 //   - ${predicate_type}: Full predicate type URL
 //   - ${short_predicate_type}: Short predicate type name
 //   - Environment variables: ${ENV_VAR} or ${ENV_VAR:default}
-func ResolveTemplate(template string, attestation *Attestation, workflowName string) string {
+//
+// It returns an error if a placeholder cannot be resolved: a {{.var}} placeholder
+// must match a known template variable, and a ${var} placeholder that isn't a known
+// template variable falls back to resolving as an environment variable (optionally
+// with a ${var:default} default) and errors only if neither resolves.
+func ResolveTemplate(template string, attestation *Attestation, workflowName string) (string, error) {
 	if template == "" {
-		return template
+		return template, nil
 	}
 
 	now := time.Now()
@@ -103,26 +108,46 @@ func ResolveTemplate(template string, attestation *Attestation, workflowName str
 	vars := buildVariableMap(attestation, workflowName, now)
 
 	// Replace template variables (both ${var} and {{.var}} syntax)
+	var unresolvedErr error
 	result = templateVarRegex.ReplaceAllStringFunc(result, func(match string) string {
 		// Extract variable name from either syntax
 		var varName string
+		isDotSyntax := false
 		if after, found := strings.CutPrefix(match, "${"); found {
 			varName = strings.TrimSuffix(after, "}")
 		} else {
 			// {{.var}} syntax
+			isDotSyntax = true
 			varName = strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(match, "{{."), "}}"))
 		}
 
 		if val, ok := vars[varName]; ok {
 			return val
 		}
-		return match // Return original if not found
+
+		if isDotSyntax {
+			// {{.var}} has no environment-variable fallback, so an unknown name is
+			// unresolvable outright.
+			if unresolvedErr == nil {
+				unresolvedErr = fmt.Errorf("unresolved template variable %q", match)
+			}
+			return match
+		}
+
+		return match // ${var}; may still resolve as an environment variable below
 	})
 
-	// Resolve environment variables
-	result = resolveEnvVars(result)
+	if unresolvedErr != nil {
+		return "", unresolvedErr
+	}
 
-	return result
+	// Resolve environment variables
+	result, err := resolveEnvVarsOrError(result)
+	if err != nil {
+		return "", err
+	}
+
+	return result, nil
 }
 
 // buildVariableMap creates a map of all available template variables.
@@ -189,6 +214,43 @@ func resolveEnvVars(s string) string {
 		}
 		return defaultVal
 	})
+}
+
+// resolveEnvVarsOrError resolves environment variables in the string, like resolveEnvVars,
+// but returns an error for a ${var} placeholder whose environment variable is unset and
+// which has no default value, instead of silently resolving it to an empty string.
+func resolveEnvVarsOrError(s string) (string, error) {
+	var unresolvedErr error
+	result := envVarRegex.ReplaceAllStringFunc(s, func(match string) string {
+		submatch := envVarRegex.FindStringSubmatch(match)
+		if len(submatch) < 2 {
+			return match
+		}
+
+		envName := submatch[1]
+		hasDefault := strings.Contains(match, ":")
+		defaultVal := ""
+		if len(submatch) >= 3 {
+			defaultVal = submatch[2]
+		}
+
+		if val := os.Getenv(envName); val != "" {
+			return val
+		}
+		if hasDefault {
+			return defaultVal
+		}
+
+		if unresolvedErr == nil {
+			unresolvedErr = fmt.Errorf("unresolved template variable %q: environment variable %q is not set and no default was provided", match, envName)
+		}
+		return match
+	})
+
+	if unresolvedErr != nil {
+		return "", unresolvedErr
+	}
+	return result, nil
 }
 
 // sanitizeForPath replaces characters that are invalid in file paths.

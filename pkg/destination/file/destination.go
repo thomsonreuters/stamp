@@ -222,7 +222,10 @@ func (d *Destination) writeInternal(
 
 	start := time.Now()
 
-	outputPath := config.ResolvePath(attestation, workflowName)
+	outputPath, err := config.ResolvePath(attestation, workflowName)
+	if err != nil {
+		return nil, destination.NewDestinationError("file", "resolve_path", err, false)
+	}
 
 	if config.CreateDirs {
 		parentDir := filepath.Dir(outputPath)
@@ -240,7 +243,6 @@ func (d *Destination) writeInternal(
 	}
 
 	var data []byte
-	var err error
 
 	if config.Pretty {
 		data, err = json.MarshalIndent(attestation.Envelope, "", "  ")
@@ -318,7 +320,10 @@ func (d *Destination) writeBatchAggregate(
 ) ([]*destination.WriteResult, error) {
 	start := time.Now()
 
-	outputPath := config.ResolvePath(attestations[0], opts.WorkflowName)
+	outputPath, err := config.ResolvePath(attestations[0], opts.WorkflowName)
+	if err != nil {
+		return nil, destination.NewDestinationError("file", "resolve_path", err, false)
+	}
 
 	envelopes := make([]any, len(attestations))
 	for i, att := range attestations {
@@ -326,7 +331,6 @@ func (d *Destination) writeBatchAggregate(
 	}
 
 	var data []byte
-	var err error
 
 	switch config.Format {
 	case "json", "":
@@ -519,7 +523,11 @@ func (d *Destination) HealthCheck(ctx context.Context) error {
 		ID:            "health-check-test",
 		PredicateType: "https://github.com/thomsonreuters/stamp/predicates/health-check-test/v1",
 	}
-	testPath := config.ResolvePath(testAttestation, "")
+	testPath, err := config.ResolvePath(testAttestation, "")
+	if err != nil {
+		return destination.NewDestinationError("file", "health_check",
+			fmt.Errorf("failed to resolve health check path: %w", err), false)
+	}
 	targetDir := filepath.Dir(testPath)
 
 	if config.CreateDirs {
