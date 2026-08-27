@@ -53,4 +53,4 @@ stamp run --attestor git \
 
 - [fetch-from-rekor.md](fetch-from-rekor.md)
 - [verify-attestation.md](verify-attestation.md)
-- `../../reference/transparency.md`
+- [a relative link](../../reference/transparency.md)
