@@ -71,7 +71,7 @@ func (v *Verifier) Verify(ctx context.Context, b *bundle.Bundle) (*VerificationR
 		return result, nil
 	}
 
-	verifierOpts, err := v.buildVerifierOptions()
+	verifierOpts, err := v.buildVerifierOptions(b)
 	if err != nil {
 		result.Errors = append(result.Errors, fmt.Sprintf("failed to build verifier config: %v", err))
 		return result, nil
@@ -126,12 +126,18 @@ func (v *Verifier) Verify(ctx context.Context, b *bundle.Bundle) (*VerificationR
 	return result, nil
 }
 
-func (v *Verifier) buildVerifierOptions() ([]verify.VerifierOption, error) {
-	// sigstore-go requires at least one timestamp source; observer-timestamp
-	// with threshold 1 accepts either tlog-integrated OR TSA.
-	opts := []verify.VerifierOption{
-		verify.WithObserverTimestamps(1),
+func (v *Verifier) buildVerifierOptions(b *bundle.Bundle) ([]verify.VerifierOption, error) {
+	var opts []verify.VerifierOption
+
+	// Long-lived key with no timestamp source: opt in to the no-timestamp
+	// path. sigstore-go accepts this only when the bundle has no cert; cert
+	// validity requires a signing time to bind to.
+	if hasCert, _ := bundleHasCertificate(b); !hasCert && !bundleHasTimestamp(b) {
+		opts = append(opts, verify.WithNoObserverTimestamps())
+	} else {
+		opts = append(opts, verify.WithObserverTimestamps(1))
 	}
+
 	if v.config.VerifyRekor {
 		opts = append(opts, verify.WithTransparencyLog(1))
 	}
@@ -139,6 +145,30 @@ func (v *Verifier) buildVerifierOptions() ([]verify.VerifierOption, error) {
 		opts = append(opts, verify.WithSignedCertificateTimestamps(1))
 	}
 	return opts, nil
+}
+
+func bundleHasCertificate(b *bundle.Bundle) (bool, error) {
+	vc, err := b.VerificationContent()
+	if err != nil {
+		return false, err
+	}
+	return vc.Certificate() != nil, nil
+}
+
+func bundleHasTimestamp(b *bundle.Bundle) bool {
+	pb := b.Bundle
+	if pb == nil {
+		return false
+	}
+	if vm := pb.GetVerificationMaterial(); vm != nil {
+		if len(vm.GetTlogEntries()) > 0 {
+			return true
+		}
+		if ts := vm.GetTimestampVerificationData(); ts != nil && len(ts.GetRfc3161Timestamps()) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // buildPolicy assembles the verification policy from the bundle's own
@@ -182,21 +212,33 @@ func (v *Verifier) buildPolicy(b *bundle.Bundle) (verify.PolicyBuilder, error) {
 		return verify.PolicyBuilder{}, errors.New("bundle: no subject digest to bind policy to")
 	}
 
+	hasCert, err := bundleHasCertificate(b)
+	if err != nil {
+		return verify.PolicyBuilder{}, fmt.Errorf("bundle: verification content: %w", err)
+	}
+
 	var policyOpts []verify.PolicyOption
-	switch {
-	case v.config.AllowUnverifiedIdentity:
-		policyOpts = append(policyOpts, verify.WithoutIdentitiesUnsafe())
-	case identityConfigured(v.config):
-		id, err := verify.NewShortCertificateIdentity(
-			v.config.ExpectedIssuer, v.config.ExpectedIssuerRegex,
-			v.config.ExpectedSAN, v.config.ExpectedSANRegex,
-		)
-		if err != nil {
-			return verify.PolicyBuilder{}, fmt.Errorf("build certificate identity: %w", err)
+	if !hasCert {
+		// Key-signed bundle: WithKey requires the bundle be key-signed
+		// (rejects a mis-labeled cert bundle) and disables identity checks.
+		policyOpts = append(policyOpts, verify.WithKey())
+	} else {
+		switch {
+		case v.config.AllowUnverifiedIdentity:
+			policyOpts = append(policyOpts, verify.WithoutIdentitiesUnsafe())
+		case identityConfigured(v.config):
+			id, err := verify.NewShortCertificateIdentity(
+				v.config.ExpectedIssuer, v.config.ExpectedIssuerRegex,
+				v.config.ExpectedSAN, v.config.ExpectedSANRegex,
+			)
+			if err != nil {
+				return verify.PolicyBuilder{}, fmt.Errorf("build certificate identity: %w", err)
+			}
+			policyOpts = append(policyOpts, verify.WithCertificateIdentity(id))
+		default:
+			return verify.PolicyBuilder{}, errors.New(
+				"cert-signed bundle requires identity policy: pass --expected-san / --expected-issuer, or --allow-unverified-identity to skip")
 		}
-		policyOpts = append(policyOpts, verify.WithCertificateIdentity(id))
-	default:
-		policyOpts = append(policyOpts, verify.WithoutIdentitiesUnsafe())
 	}
 
 	return verify.NewPolicy(artifactOpt, policyOpts...), nil

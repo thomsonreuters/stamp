@@ -338,6 +338,9 @@ const (
 
 	// VerifyAllowUnverifiedIdentity skips identity checks (unsafe).
 	VerifyAllowUnverifiedIdentity = "commands.verify.allow_unverified_identity"
+
+	// VerifyPublicKey is the PEM path of the public key used to verify a key-signed bundle.
+	VerifyPublicKey = "commands.verify.public_key"
 )
 
 // ============================================================================

@@ -59,15 +59,15 @@ func (p *AttestorPipeline) Execute(ctx context.Context) error {
 	p.output.Progress("Generating attestation for %s...", p.name)
 
 	statementBytes, err := p.ExecuteAttestor(ctx)
-	envelopeResult := EnvelopeResult{
+	signedResult := SignedResult{
 		StatementJSON: statementBytes,
 		AttestorName:  p.name,
 		PredicateType: p.getPredicateType(),
 	}
 	if err != nil {
 		p.RecordAttestorExecution(false)
-		envelopeResult.Error = err
-		p.result.Attestations = append(p.result.Attestations, envelopeResult)
+		signedResult.Error = err
+		p.result.Attestations = append(p.result.Attestations, signedResult)
 		return pkgerrors.WrapPipeline(err, "attestation", p.name).
 			Suggest(
 				fmt.Sprintf("Run 'stamp list %s --show-config' to verify configuration", p.name),
@@ -79,8 +79,8 @@ func (p *AttestorPipeline) Execute(ctx context.Context) error {
 
 	bundleJSON, err := p.signAndBundle(ctx, statementBytes)
 	if err != nil {
-		envelopeResult.Error = err
-		p.result.Attestations = append(p.result.Attestations, envelopeResult)
+		signedResult.Error = err
+		p.result.Attestations = append(p.result.Attestations, signedResult)
 		return pkgerrors.WrapPipeline(err, "signing", p.name).
 			Suggest(
 				"Check signer configuration (file/fulcio)",
@@ -88,11 +88,11 @@ func (p *AttestorPipeline) Execute(ctx context.Context) error {
 				"Check network connectivity for Fulcio and Rekor",
 			)
 	}
-	envelopeResult.BundleJSON = bundleJSON
+	signedResult.BundleJSON = bundleJSON
 
-	if err := p.handleStdoutOutput(ctx, envelopeResult); err != nil {
-		envelopeResult.Error = err
-		p.result.Attestations = append(p.result.Attestations, envelopeResult)
+	if err := p.handleStdoutOutput(ctx, signedResult); err != nil {
+		signedResult.Error = err
+		p.result.Attestations = append(p.result.Attestations, signedResult)
 		return pkgerrors.WrapPipeline(err, "output", p.name).
 			Suggest(
 				"Check --output-format flag value",
@@ -100,9 +100,9 @@ func (p *AttestorPipeline) Execute(ctx context.Context) error {
 			)
 	}
 
-	if err := p.handlePersistOutput(ctx, envelopeResult); err != nil {
-		envelopeResult.Error = err
-		p.result.Attestations = append(p.result.Attestations, envelopeResult)
+	if err := p.handlePersistOutput(ctx, signedResult); err != nil {
+		signedResult.Error = err
+		p.result.Attestations = append(p.result.Attestations, signedResult)
 		return pkgerrors.WrapPipeline(err, "persist", p.name).
 			Suggest(
 				"Check --template path is writable",
@@ -110,7 +110,7 @@ func (p *AttestorPipeline) Execute(ctx context.Context) error {
 			)
 	}
 
-	p.result.Attestations = append(p.result.Attestations, envelopeResult)
+	p.result.Attestations = append(p.result.Attestations, signedResult)
 
 	p.result.Metrics = p.FinalizeMetrics()
 
@@ -265,7 +265,7 @@ func (p *AttestorPipeline) signAndBundle(ctx context.Context, payload []byte) ([
 // handleStdoutOutput writes the attestation to stdout. When signing is
 // configured it emits the sigstore Bundle v0.3; otherwise it emits the raw
 // in-toto Statement.
-func (p *AttestorPipeline) handleStdoutOutput(ctx context.Context, result EnvelopeResult) error {
+func (p *AttestorPipeline) handleStdoutOutput(ctx context.Context, result SignedResult) error {
 	if p.HasWorkflowContext() {
 		p.logger.DebugContext(ctx, "skipping stdout output - handled by workflow pipeline")
 		return nil
@@ -297,7 +297,7 @@ func (p *AttestorPipeline) handleStdoutOutput(ctx context.Context, result Envelo
 }
 
 // handlePersistOutput writes the attestation bundle to a file if --persist is enabled.
-func (p *AttestorPipeline) handlePersistOutput(ctx context.Context, result EnvelopeResult) error {
+func (p *AttestorPipeline) handlePersistOutput(ctx context.Context, result SignedResult) error {
 	if p.HasWorkflowContext() {
 		p.logger.DebugContext(ctx, "skipping persist output - handled by workflow pipeline")
 		return nil
@@ -398,7 +398,7 @@ func NewAttestorPipeline(attestorID string, cfg config.ConfigurationIface, logge
 		BasePipeline: NewBasePipeline(cfg, logger, output),
 		attestorID:   attestorID,
 		name:         attestorID,
-		result:       &Result{Attestations: make([]EnvelopeResult, 0)},
+		result:       &Result{Attestations: make([]SignedResult, 0)},
 	}
 }
 
@@ -413,7 +413,7 @@ func NewNamedAttestorPipeline(
 		BasePipeline: NewBasePipeline(cfg, logger, output),
 		attestorID:   attestorID,
 		name:         instanceName,
-		result:       &Result{Attestations: make([]EnvelopeResult, 0)},
+		result:       &Result{Attestations: make([]SignedResult, 0)},
 	}
 }
 

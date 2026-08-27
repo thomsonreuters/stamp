@@ -358,7 +358,7 @@ func (p *WorkflowPipeline) handleStdoutOutput(ctx context.Context, overlayConfig
 	return nil
 }
 
-func chooseStdoutPayload(result EnvelopeResult) any {
+func chooseStdoutPayload(result SignedResult) any {
 	if len(result.BundleJSON) > 0 {
 		return rawJSON(result.BundleJSON)
 	}
@@ -384,7 +384,7 @@ func collectionStdoutPayload(collection *CollectionResult) any {
 // getOrCreateSignedCollection returns a cached collection or creates one if
 // not cached. Caching keeps the same timestamp/fingerprint across stdout,
 // persist, and tlog upload so users can fetch the exact collection they saved.
-func (p *WorkflowPipeline) getOrCreateSignedCollection(ctx context.Context, successful []EnvelopeResult) (*CollectionResult, error) {
+func (p *WorkflowPipeline) getOrCreateSignedCollection(ctx context.Context, successful []SignedResult) (*CollectionResult, error) {
 	if p.cachedCollection != nil {
 		p.logger.DebugContext(ctx, "reusing cached collection")
 		return p.cachedCollection, nil
@@ -534,7 +534,7 @@ func (p *WorkflowPipeline) handlePersistOutput(ctx context.Context, overlayConfi
 }
 
 // persistIndividualAttestations writes each attestation bundle to a separate file.
-func (p *WorkflowPipeline) persistIndividualAttestations(ctx context.Context, manager *destination.Manager, successful []EnvelopeResult) error {
+func (p *WorkflowPipeline) persistIndividualAttestations(ctx context.Context, manager *destination.Manager, successful []SignedResult) error {
 	for _, result := range successful {
 		if len(result.BundleJSON) == 0 {
 			p.logger.DebugContext(ctx, "skipping unsigned attestation for persist",
@@ -580,7 +580,7 @@ func (p *WorkflowPipeline) persistIndividualAttestations(ctx context.Context, ma
 }
 
 // persistCollection writes the collection bundle to a file.
-func (p *WorkflowPipeline) persistCollection(ctx context.Context, manager *destination.Manager, successful []EnvelopeResult) error {
+func (p *WorkflowPipeline) persistCollection(ctx context.Context, manager *destination.Manager, successful []SignedResult) error {
 	collection, err := p.getOrCreateSignedCollection(ctx, successful)
 	if err != nil {
 		return pkgerrors.WrapWithContext(err, "persist", "create_collection",
@@ -653,7 +653,7 @@ func NewWorkflowPipeline(workflowName string, cfg config.ConfigurationIface, log
 		BasePipeline: NewBasePipeline(cfg, log, out),
 		name:         workflowName,
 		result: &Result{
-			Attestations: make([]EnvelopeResult, 0),
+			Attestations: make([]SignedResult, 0),
 		},
 	}
 }

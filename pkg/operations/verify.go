@@ -23,11 +23,14 @@ import (
 	"os"
 
 	sgbundle "github.com/sigstore/sigstore-go/pkg/bundle"
+	sgroot "github.com/sigstore/sigstore-go/pkg/root"
 	"github.com/thomsonreuters/stamp/pkg/config"
 	"github.com/thomsonreuters/stamp/pkg/config/flags"
+	"github.com/thomsonreuters/stamp/pkg/crypto/keys"
 	pkgerrors "github.com/thomsonreuters/stamp/pkg/errors"
 	"github.com/thomsonreuters/stamp/pkg/logger"
 	"github.com/thomsonreuters/stamp/pkg/output"
+	"github.com/thomsonreuters/stamp/pkg/signing/sigstore"
 	"github.com/thomsonreuters/stamp/pkg/trust"
 	"github.com/thomsonreuters/stamp/pkg/validation"
 	"github.com/thomsonreuters/stamp/pkg/verification"
@@ -104,16 +107,28 @@ func (o *VerifyOp) Execute(ctx context.Context, attestationPath string) error {
 		return parseErr
 	}
 
-	trustOpts := trust.OptionsFromConfig(o.config)
-	resolver, err := trust.NewResolver(trustOpts, o.logger)
-	if err != nil {
-		return pkgerrors.WrapWithContext(err, "verify", "trust_resolver",
-			"failed to init trust resolver")
-	}
-	tm, err := resolver.Resolve(ctx)
+	trustedRoot, err := trust.ResolveTrustedRoot(ctx, o.config, o.logger)
 	if err != nil {
 		return pkgerrors.WrapWithContext(err, "verify", "trust_resolve",
 			"failed to resolve trusted root")
+	}
+	var tm sgroot.TrustedMaterial = trustedRoot
+
+	// Bundles signed with a long-lived user key need the pubkey injected
+	// into the trusted material so hint-based lookup and Rekor CompareKey
+	// resolve. Fulcio-signed bundles do not use this path.
+	if pubKeyPath := o.config.GetString(flags.VerifyPublicKey); pubKeyPath != "" {
+		pubKey, keyErr := keys.LoadPublicKeyFromFile(pubKeyPath)
+		if keyErr != nil {
+			return pkgerrors.WrapWithContext(keyErr, "verify", "load_public_key",
+				fmt.Sprintf("failed to load public key: %s", pubKeyPath))
+		}
+		wrapped, wrapErr := sigstore.NewSignerKeyTrustedMaterial(tm, pubKey)
+		if wrapErr != nil {
+			return pkgerrors.WrapWithContext(wrapErr, "verify", "wrap_public_key",
+				"failed to wrap public key into trusted material")
+		}
+		tm = wrapped
 	}
 
 	verifyRekor := o.config.GetBool(flags.TransparencyEnable)

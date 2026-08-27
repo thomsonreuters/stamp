@@ -23,8 +23,8 @@ type Pipeline interface {
 	Execute(ctx context.Context) error
 }
 
-// EnvelopeResult represents the outcome of processing a single attestation.
-type EnvelopeResult struct {
+// SignedResult represents the outcome of processing a single attestation.
+type SignedResult struct {
 	// BundleJSON holds the serialized sigstore Bundle v0.3.
 	BundleJSON    []byte
 	Error         error
@@ -45,7 +45,7 @@ type CollectionResult struct {
 
 // Result represents the outcome of a pipeline execution.
 type Result struct {
-	Attestations []EnvelopeResult
+	Attestations []SignedResult
 	Metrics      *Metrics
 	Collections  []CollectionResult
 }
@@ -69,8 +69,8 @@ func (r *Result) Merge(other *Result) {
 }
 
 // Successful returns attestation results without errors.
-func (r *Result) Successful() []EnvelopeResult {
-	successful := make([]EnvelopeResult, 0, len(r.Attestations))
+func (r *Result) Successful() []SignedResult {
+	successful := make([]SignedResult, 0, len(r.Attestations))
 	for _, result := range r.Attestations {
 		if result.Error == nil {
 			successful = append(successful, result)
@@ -80,8 +80,8 @@ func (r *Result) Successful() []EnvelopeResult {
 }
 
 // Failed returns attestation results with errors.
-func (r *Result) Failed() []EnvelopeResult {
-	var failed []EnvelopeResult
+func (r *Result) Failed() []SignedResult {
+	var failed []SignedResult
 	for _, result := range r.Attestations {
 		if result.Error != nil {
 			failed = append(failed, result)

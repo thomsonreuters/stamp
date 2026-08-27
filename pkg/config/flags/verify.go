@@ -63,4 +63,11 @@ var VerifyFlags = plugincobra.FlagGroup{
 		Default:    false,
 		Help:       "Skip identity policy checks (unsafe — only for migration/testing)",
 	},
+	"public-key": {
+		Name:       "public-key",
+		ConfigPath: VerifyPublicKey,
+		Type:       plugincobra.StringFlag,
+		Default:    "",
+		Help:       "Public key PEM path for verifying key-signed bundles",
+	},
 }

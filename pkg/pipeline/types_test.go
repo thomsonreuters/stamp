@@ -25,17 +25,17 @@ import (
 func TestResult_Successful(t *testing.T) {
 	tests := []struct {
 		name     string
-		results  []EnvelopeResult
+		results  []SignedResult
 		expected int
 	}{
 		{
 			name:     "empty results",
-			results:  []EnvelopeResult{},
+			results:  []SignedResult{},
 			expected: 0,
 		},
 		{
 			name: "all successful",
-			results: []EnvelopeResult{
+			results: []SignedResult{
 				{BundleJSON: []byte("{}"), Error: nil},
 				{BundleJSON: []byte("{}"), Error: nil},
 			},
@@ -43,7 +43,7 @@ func TestResult_Successful(t *testing.T) {
 		},
 		{
 			name: "all failed",
-			results: []EnvelopeResult{
+			results: []SignedResult{
 				{Error: errors.New("error1")},
 				{Error: errors.New("error2")},
 			},
@@ -51,7 +51,7 @@ func TestResult_Successful(t *testing.T) {
 		},
 		{
 			name: "mixed results",
-			results: []EnvelopeResult{
+			results: []SignedResult{
 				{BundleJSON: []byte("{}"), Error: nil},
 				{Error: errors.New("error")},
 				{BundleJSON: []byte("{}"), Error: nil},
@@ -76,17 +76,17 @@ func TestResult_Successful(t *testing.T) {
 func TestResult_Failed(t *testing.T) {
 	tests := []struct {
 		name     string
-		results  []EnvelopeResult
+		results  []SignedResult
 		expected int
 	}{
 		{
 			name:     "empty results",
-			results:  []EnvelopeResult{},
+			results:  []SignedResult{},
 			expected: 0,
 		},
 		{
 			name: "all successful",
-			results: []EnvelopeResult{
+			results: []SignedResult{
 				{BundleJSON: []byte("{}"), Error: nil},
 				{BundleJSON: []byte("{}"), Error: nil},
 			},
@@ -94,7 +94,7 @@ func TestResult_Failed(t *testing.T) {
 		},
 		{
 			name: "all failed",
-			results: []EnvelopeResult{
+			results: []SignedResult{
 				{Error: errors.New("error1")},
 				{Error: errors.New("error2")},
 			},
@@ -102,7 +102,7 @@ func TestResult_Failed(t *testing.T) {
 		},
 		{
 			name: "mixed results",
-			results: []EnvelopeResult{
+			results: []SignedResult{
 				{BundleJSON: []byte("{}"), Error: nil},
 				{Error: errors.New("error")},
 				{BundleJSON: []byte("{}"), Error: nil},
@@ -126,17 +126,17 @@ func TestResult_Failed(t *testing.T) {
 func TestResult_Bundles(t *testing.T) {
 	tests := []struct {
 		name     string
-		results  []EnvelopeResult
+		results  []SignedResult
 		expected int
 	}{
 		{
 			name:     "empty results",
-			results:  []EnvelopeResult{},
+			results:  []SignedResult{},
 			expected: 0,
 		},
 		{
 			name: "all with bundles",
-			results: []EnvelopeResult{
+			results: []SignedResult{
 				{BundleJSON: []byte(`{"a":1}`), Error: nil},
 				{BundleJSON: []byte(`{"b":2}`), Error: nil},
 			},
@@ -144,7 +144,7 @@ func TestResult_Bundles(t *testing.T) {
 		},
 		{
 			name: "some without bundles",
-			results: []EnvelopeResult{
+			results: []SignedResult{
 				{BundleJSON: []byte(`{"a":1}`), Error: nil},
 				{Error: errors.New("error")},
 				{BundleJSON: []byte(`{"c":3}`), Error: nil},
@@ -171,17 +171,17 @@ func TestResult_Errors(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		results  []EnvelopeResult
+		results  []SignedResult
 		expected int
 	}{
 		{
 			name:     "empty results",
-			results:  []EnvelopeResult{},
+			results:  []SignedResult{},
 			expected: 0,
 		},
 		{
 			name: "no errors",
-			results: []EnvelopeResult{
+			results: []SignedResult{
 				{BundleJSON: []byte("{}"), Error: nil},
 				{BundleJSON: []byte("{}"), Error: nil},
 			},
@@ -189,7 +189,7 @@ func TestResult_Errors(t *testing.T) {
 		},
 		{
 			name: "all errors",
-			results: []EnvelopeResult{
+			results: []SignedResult{
 				{Error: err1},
 				{Error: err2},
 			},
@@ -197,7 +197,7 @@ func TestResult_Errors(t *testing.T) {
 		},
 		{
 			name: "mixed",
-			results: []EnvelopeResult{
+			results: []SignedResult{
 				{BundleJSON: []byte("{}"), Error: nil},
 				{Error: err1},
 			},

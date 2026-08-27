@@ -125,7 +125,7 @@ func (o *RunOp) executeWorkflowsSequential(ctx context.Context, workflowNames []
 	failFast := !o.config.GetBool(flags.RunContinueOnError)
 
 	aggregated := &pipeline.Result{
-		Attestations: make([]pipeline.EnvelopeResult, 0, len(workflowNames)*4),
+		Attestations: make([]pipeline.SignedResult, 0, len(workflowNames)*4),
 		Metrics:      pipeline.NewMetrics(),
 	}
 

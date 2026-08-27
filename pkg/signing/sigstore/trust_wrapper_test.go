@@ -49,7 +49,7 @@ func genECDSAKey(t *testing.T) *ecdsa.PrivateKey {
 
 func TestNewSignerKeyTrustedMaterial_NilPubKeyReturnsBaseUnchanged(t *testing.T) {
 	base := &stubBase{}
-	got, err := newSignerKeyTrustedMaterial(base, nil)
+	got, err := NewSignerKeyTrustedMaterial(base, nil)
 	require.NoError(t, err)
 	// Same instance — no wrapping.
 	assert.Same(t, root.TrustedMaterial(base), got)
@@ -57,7 +57,7 @@ func TestNewSignerKeyTrustedMaterial_NilPubKeyReturnsBaseUnchanged(t *testing.T)
 
 func TestNewSignerKeyTrustedMaterial_UnsupportedPubKeyErrors(t *testing.T) {
 	// A plain string is not a crypto.PublicKey and LoadDefaultVerifier will reject it.
-	_, err := newSignerKeyTrustedMaterial(&stubBase{}, "not a key")
+	_, err := NewSignerKeyTrustedMaterial(&stubBase{}, "not a key")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "load verifier for user key")
 }
@@ -69,7 +69,7 @@ func TestSignerKeyTrustedMaterial_PublicKeyVerifierReturnsInjectedKey(t *testing
 	base := &stubBase{}
 	priv := genECDSAKey(t)
 
-	wrapped, err := newSignerKeyTrustedMaterial(base, priv.Public())
+	wrapped, err := NewSignerKeyTrustedMaterial(base, priv.Public())
 	require.NoError(t, err)
 
 	for _, hint := range []string{"", "any-hint", "another-hint", "sha256:abc"} {
@@ -92,7 +92,7 @@ func TestSignerKeyTrustedMaterial_DelegatesOtherMethods(t *testing.T) {
 	base := &stubBase{}
 	priv := genECDSAKey(t)
 
-	wrapped, err := newSignerKeyTrustedMaterial(base, priv.Public())
+	wrapped, err := NewSignerKeyTrustedMaterial(base, priv.Public())
 	require.NoError(t, err)
 
 	// BaseTrustedMaterial provides zero-value slices/maps for each of these.

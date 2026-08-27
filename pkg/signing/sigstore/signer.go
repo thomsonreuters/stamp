@@ -59,7 +59,7 @@ func (s *Signer) SignBundle(ctx context.Context, payload []byte, payloadType str
 		// CompareKey against public sigstore's trusted_root always fails
 		// because trusted_root does not carry user keys.
 		if opts.Key != nil && opts.Key.Signer != nil {
-			wrapped, werr := newSignerKeyTrustedMaterial(bundleOpts.TrustedRoot, opts.Key.Signer.Public())
+			wrapped, werr := NewSignerKeyTrustedMaterial(bundleOpts.TrustedRoot, opts.Key.Signer.Public())
 			if werr != nil {
 				return nil, fmt.Errorf("sigstore sign: wrap trusted material: %w", werr)
 			}
