@@ -78,7 +78,10 @@ func init() {
 	_ = plugincobra.ApplyFlagGroup(runCmd, flags.PasswordFlags)
 	_ = plugincobra.ApplyFlagGroup(runCmd, flags.RekorEnableFlags)
 	_ = plugincobra.ApplyFlagGroup(runCmd, flags.RekorServerFlags)
+	_ = plugincobra.ApplyFlagGroup(runCmd, flags.RekorVersionFlags)
 	_ = plugincobra.ApplyFlagGroup(runCmd, flags.RekorUploadFlags)
+	_ = plugincobra.ApplyFlagGroup(runCmd, flags.TSAServerFlags)
+	_ = plugincobra.ApplyFlagGroup(runCmd, flags.TrustFlags)
 	_ = plugincobra.ApplyFlagGroup(runCmd, flags.OutputFlags)
 	_ = plugincobra.ApplyFlagGroup(runCmd, flags.RunFlags)
 
