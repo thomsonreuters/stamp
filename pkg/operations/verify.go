@@ -185,20 +185,7 @@ func (o *VerifyOp) Execute(ctx context.Context, attestationPath string) error {
 	)
 
 	if result.Valid {
-		o.output.Success("Attestation verification passed")
-		o.output.List("Signature valid")
-		if result.CertificateValid {
-			o.output.List("Certificate valid")
-		}
-		if result.RekorValid {
-			o.output.List("Rekor inclusion verified")
-		}
-		if result.VerifiedSAN != "" {
-			o.output.List("SAN: %s", result.VerifiedSAN)
-		}
-		if result.VerifiedIssuer != "" {
-			o.output.List("Issuer: %s", result.VerifiedIssuer)
-		}
+		o.renderVerificationSuccess(result)
 	} else {
 		o.output.Error("Attestation verification failed")
 		for _, errMsg := range result.Errors {
@@ -241,6 +228,23 @@ func (o *VerifyOp) Execute(ctx context.Context, attestationPath string) error {
 
 	o.logger.InfoContext(ctx, "verify command completed successfully")
 	return nil
+}
+
+func (o *VerifyOp) renderVerificationSuccess(result *verification.VerificationResult) {
+	o.output.Success("Attestation verification passed")
+	o.output.List("Signature valid")
+	if result.CertificateValid {
+		o.output.List("Certificate valid")
+	}
+	if result.RekorValid {
+		o.output.List("Rekor inclusion verified")
+	}
+	if result.VerifiedSAN != "" {
+		o.output.List("SAN: %s", result.VerifiedSAN)
+	}
+	if result.VerifiedIssuer != "" {
+		o.output.List("Issuer: %s", result.VerifiedIssuer)
+	}
 }
 
 // NewVerifyOp creates a new VerifyOp instance with the provided configuration, logger, and output handler.

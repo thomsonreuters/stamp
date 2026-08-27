@@ -48,6 +48,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -242,7 +243,7 @@ func (d *Destination) writeInternal(
 	data := attestation.Bundle
 	if len(data) == 0 {
 		return nil, destination.NewDestinationError("file", "serialize_attestation",
-			fmt.Errorf("attestation bundle is empty"), false)
+			errors.New("attestation bundle is empty"), false)
 	}
 
 	if ctxErr := ctx.Err(); ctxErr != nil {

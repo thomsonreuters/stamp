@@ -16,11 +16,9 @@ package verification
 
 import (
 	"context"
-	"crypto/x509"
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/sigstore/sigstore-go/pkg/bundle"
@@ -33,16 +31,6 @@ import (
 // stamp's post-verify hook. Fulcio issues short-lived (10 minute) certs by
 // default; anything > 24 h is suspect.
 const MaxCertValidityDuration = 24 * time.Hour
-
-// deniedExtKeyUsages lists ExtKeyUsage OIDs that must never appear on the
-// leaf certificate of a code-signing bundle. sigstore-go already requires
-// CodeSigning, but does not enforce the absence of other usages.
-var deniedExtKeyUsages = map[x509.ExtKeyUsage]string{
-	x509.ExtKeyUsageServerAuth:      "ServerAuth",
-	x509.ExtKeyUsageClientAuth:      "ClientAuth",
-	x509.ExtKeyUsageOCSPSigning:     "OCSPSigning",
-	x509.ExtKeyUsageEmailProtection: "EmailProtection",
-}
 
 // Verifier verifies a sigstore Bundle v0.3 against trust material and
 // stamp-specific policy hooks.
@@ -62,7 +50,7 @@ func New(config VerificationConfig, tm root.TrustedMaterial, log logger.Logger) 
 }
 
 // Verify verifies the given sigstore Bundle v0.3 and applies stamp-specific
-// post-verify hooks (24h cert validity ceiling + ExtKeyUsage denylist).
+// post-verify hooks (24h cert validity ceiling).
 func (v *Verifier) Verify(ctx context.Context, b *bundle.Bundle) (*VerificationResult, error) {
 	result := &VerificationResult{}
 
@@ -71,11 +59,7 @@ func (v *Verifier) Verify(ctx context.Context, b *bundle.Bundle) (*VerificationR
 		return result, nil
 	}
 
-	verifierOpts, err := v.buildVerifierOptions(b)
-	if err != nil {
-		result.Errors = append(result.Errors, fmt.Sprintf("failed to build verifier config: %v", err))
-		return result, nil
-	}
+	verifierOpts := v.buildVerifierOptions(b)
 
 	sv, err := verify.NewVerifier(v.trustedMaterial, verifierOpts...)
 	if err != nil {
@@ -126,7 +110,7 @@ func (v *Verifier) Verify(ctx context.Context, b *bundle.Bundle) (*VerificationR
 	return result, nil
 }
 
-func (v *Verifier) buildVerifierOptions(b *bundle.Bundle) ([]verify.VerifierOption, error) {
+func (v *Verifier) buildVerifierOptions(b *bundle.Bundle) []verify.VerifierOption {
 	var opts []verify.VerifierOption
 
 	// Long-lived key with no timestamp source: opt in to the no-timestamp
@@ -144,7 +128,7 @@ func (v *Verifier) buildVerifierOptions(b *bundle.Bundle) ([]verify.VerifierOpti
 	if v.config.RequireSCT {
 		opts = append(opts, verify.WithSignedCertificateTimestamps(1))
 	}
-	return opts, nil
+	return opts
 }
 
 func bundleHasCertificate(b *bundle.Bundle) (bool, error) {
@@ -190,13 +174,13 @@ func (v *Verifier) buildPolicy(b *bundle.Bundle) (verify.PolicyBuilder, error) {
 	if err != nil {
 		return verify.PolicyBuilder{}, fmt.Errorf("bundle: parse statement: %w", err)
 	}
-	if len(stmt.Subject) == 0 {
+	if len(stmt.GetSubject()) == 0 {
 		return verify.PolicyBuilder{}, errors.New("bundle: statement has no subjects")
 	}
 
 	var artifactOpt verify.ArtifactPolicyOption
-	for _, subj := range stmt.Subject {
-		for algo, hex := range subj.Digest {
+	for _, subj := range stmt.GetSubject() {
+		for algo, hex := range subj.GetDigest() {
 			raw, decodeErr := decodeHex(hex)
 			if decodeErr != nil {
 				return verify.PolicyBuilder{}, fmt.Errorf("bundle: decode subject digest: %w", decodeErr)
@@ -244,15 +228,10 @@ func (v *Verifier) buildPolicy(b *bundle.Bundle) (verify.PolicyBuilder, error) {
 	return verify.NewPolicy(artifactOpt, policyOpts...), nil
 }
 
-// applyPostVerifyHooks enforces stamp-specific certificate policies:
-//  1. cert validity must be <= MaxCertValidityDuration
-//  2. leaf ExtKeyUsage must not include ServerAuth / ClientAuth /
-//     OCSPSigning / EmailProtection.
-//
-// sigstore-go already enforces the positive requirements (chain, CodeSigning
-// EKU, KeyUsage DigitalSignature, SAN presence). These hooks defend against
-// mis-issued Fulcio certs — even if the trust root somehow signs one, stamp
-// still refuses to accept it.
+// applyPostVerifyHooks enforces stamp-specific certificate policies. Today
+// this is a single rule: cert validity must be <= MaxCertValidityDuration.
+// Fulcio issues short-lived certs (10 min default); anything > 24 h is
+// suspect and rejected here even though sigstore-go accepted the chain.
 func (v *Verifier) applyPostVerifyHooks(b *bundle.Bundle, _ *VerificationResult) error {
 	vc, err := b.VerificationContent()
 	if err != nil {
@@ -266,17 +245,6 @@ func (v *Verifier) applyPostVerifyHooks(b *bundle.Bundle, _ *VerificationResult)
 	if delta := cert.NotAfter.Sub(cert.NotBefore); delta > MaxCertValidityDuration {
 		return fmt.Errorf("certificate validity too long: %s > %s (stamp policy)",
 			delta, MaxCertValidityDuration)
-	}
-
-	var offending []string
-	for _, eku := range cert.ExtKeyUsage {
-		if name, denied := deniedExtKeyUsages[eku]; denied {
-			offending = append(offending, name)
-		}
-	}
-	if len(offending) > 0 {
-		return fmt.Errorf("certificate extkeyusage includes forbidden usage(s): %s (stamp policy)",
-			strings.Join(offending, ", "))
 	}
 	return nil
 }

@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestIdentityConfigured(t *testing.T) {
@@ -68,7 +69,7 @@ func TestVerifier_NoTrustedMaterial(t *testing.T) {
 	// can load a bundle and exercise the full Verify path.
 	v := &Verifier{}
 	result, err := v.Verify(t.Context(), nil)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.False(t, result.Valid)
 	assert.NotEmpty(t, result.Errors)

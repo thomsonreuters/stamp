@@ -428,4 +428,3 @@ func NewAttestorPipelineWithWorkflow(
 	pipeline.workflow = workflowName
 	return pipeline
 }
-

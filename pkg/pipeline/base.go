@@ -34,14 +34,14 @@ import (
 // BasePipeline provides common infrastructure for all pipeline implementations.
 // It handles configuration management and shared resource creation with caching.
 type BasePipeline struct {
-	config          config.ConfigurationIface
-	sigstoreSigner  *sigstore.Signer
-	sigstoreOpts    *sigstore.Options
-	sigstoreLoaded  bool
-	destManager     *destination.Manager
-	metrics         *Metrics
-	logger          logger.Logger
-	output          output.OutputIface
+	config         config.ConfigurationIface
+	sigstoreSigner *sigstore.Signer
+	sigstoreOpts   *sigstore.Options
+	sigstoreLoaded bool
+	destManager    *destination.Manager
+	metrics        *Metrics
+	logger         logger.Logger
+	output         output.OutputIface
 }
 
 // GetSigstoreSigner returns the cached sigstore signer instance (safe for reuse
