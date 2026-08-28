@@ -41,7 +41,7 @@ var TrustFlags = plugincobra.FlagGroup{
 		ConfigPath: TUFRootPath,
 		Type:       plugincobra.StringFlag,
 		Default:    "",
-		Help:       "Path OR https URL to a TUF 1.root.json for bootstrapping trust (URL requires --tuf-root-checksum)",
+		Help:       "Path OR https URL to a TUF root configuration file for bootstrapping trust (URL requires --tuf-root-checksum)",
 	},
 	"tuf-root-checksum": {
 		Name:       "tuf-root-checksum",
