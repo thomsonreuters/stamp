@@ -55,7 +55,7 @@ var TrustFlags = plugincobra.FlagGroup{
 		ConfigPath: FulcioCertChain,
 		Type:       plugincobra.StringFlag,
 		Default:    "",
-		Help:       "Path to Fulcio CA cert-chain PEM (required in explicit mode; no live-fetch)",
+		Help:       "Path to Fulcio CA cert-chain PEM (required when configuring trust manually)",
 	},
 	"rekor-public-key": {
 		Name:       "rekor-public-key",
