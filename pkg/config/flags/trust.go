@@ -76,7 +76,7 @@ var TrustFlags = plugincobra.FlagGroup{
 		ConfigPath: SigningConfigPath,
 		Type:       plugincobra.StringFlag,
 		Default:    "",
-		Help:       "Path to a sigstore signing_config.v0.2.json (mutually exclusive with --use-signing-config)",
+		Help:       "Path to a sigstore signing config file (mutually exclusive with --use-signing-config)",
 	},
 	"use-signing-config": {
 		Name:       "use-signing-config",
