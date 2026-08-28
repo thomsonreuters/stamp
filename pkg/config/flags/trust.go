@@ -83,6 +83,6 @@ var TrustFlags = plugincobra.FlagGroup{
 		ConfigPath: UseSigningConfig,
 		Type:       plugincobra.BoolFlag,
 		Default:    true,
-		Help:       "Fetch signing_config.v0.2.json from --tuf-url and use its service URLs (default true). Pass --use-signing-config=false to use explicit --fulcio-url/--rekor-url/--tsa-url flags instead.",
+		Help:       "Fetch the sigstore signing config file from --tuf-url and use its service URLs (default true). Pass --use-signing-config=false to use explicit --fulcio-url/--rekor-url/--tsa-url flags instead.",
 	},
 }
