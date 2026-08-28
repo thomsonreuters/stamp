@@ -62,7 +62,7 @@ var TrustFlags = plugincobra.FlagGroup{
 		ConfigPath: RekorPublicKey,
 		Type:       plugincobra.StringFlag,
 		Default:    "",
-		Help:       "Path to Rekor log public key PEM (required in explicit mode; Rekor v2 has no fetch endpoint)",
+		Help:       "Path to Rekor log public key PEM (required when configuring trust manually)",
 	},
 	"tsa-cert-chain": {
 		Name:       "tsa-cert-chain",
