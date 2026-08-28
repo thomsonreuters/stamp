@@ -69,7 +69,7 @@ var TrustFlags = plugincobra.FlagGroup{
 		ConfigPath: TSACertChain,
 		Type:       plugincobra.StringFlag,
 		Default:    "",
-		Help:       "Path to TSA cert-chain PEM (required in explicit mode; leaf,intermediates,...,root)",
+		Help:       "Path to TSA cert-chain PEM (required when configuring trust manually)",
 	},
 	"signing-config": {
 		Name:       "signing-config",
