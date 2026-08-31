@@ -28,19 +28,19 @@ import (
 const testSigningConfigJSON = `{
   "mediaType": "application/vnd.dev.sigstore.signingconfig.v0.2+json",
   "caUrls": [
-    { "url": "https://fulcio.sc.example.com", "majorApiVersion": 1,
+    { "url": "https://fulcio.example.com", "majorApiVersion": 1,
       "validFor": { "start": "2020-01-01T00:00:00Z" }, "operator": "example.com" }
   ],
   "oidcUrls": [
-    { "url": "https://oidc.sc.example.com", "majorApiVersion": 1,
+    { "url": "https://oidc.example.com", "majorApiVersion": 1,
       "validFor": { "start": "2020-01-01T00:00:00Z" }, "operator": "example.com" }
   ],
   "rekorTlogUrls": [
-    { "url": "https://rekor.sc.example.com", "majorApiVersion": 1,
+    { "url": "https://rekor.example.com", "majorApiVersion": 1,
       "validFor": { "start": "2020-01-01T00:00:00Z" }, "operator": "example.com" }
   ],
   "tsaUrls": [
-    { "url": "https://tsa.sc.example.com", "majorApiVersion": 1,
+    { "url": "https://tsa.example.com", "majorApiVersion": 1,
       "validFor": { "start": "2020-01-01T00:00:00Z" }, "operator": "example.com" }
   ],
   "rekorTlogConfig": { "selector": "ANY" },
@@ -86,16 +86,16 @@ func TestHasExplicitServiceURL(t *testing.T) {
 
 func TestResolveEffectiveURLs_NoSigningConfig(t *testing.T) {
 	cfg := config.NewMockConfiguration()
-	cfg.On("GetString", flags.FulcioURL).Return("https://custom.fulcio")
-	cfg.On("GetString", flags.RekorURL).Return("https://custom.rekor")
-	cfg.On("GetString", flags.TSAURL).Return("https://custom.tsa")
+	cfg.On("GetString", flags.FulcioURL).Return("https://fulcio.example.com")
+	cfg.On("GetString", flags.RekorURL).Return("https://rekor.example.com")
+	cfg.On("GetString", flags.TSAURL).Return("https://timestamp.example.com")
 	cfg.On("GetInt", flags.RekorVersion).Return(1)
 
 	urls, err := resolveEffectiveURLs(cfg, nil)
 	require.NoError(t, err)
-	assert.Equal(t, "https://custom.fulcio", urls.fulcio)
-	assert.Equal(t, "https://custom.rekor", urls.rekor)
-	assert.Equal(t, "https://custom.tsa", urls.tsa)
+	assert.Equal(t, "https://fulcio.example.com", urls.fulcio)
+	assert.Equal(t, "https://rekor.example.com", urls.rekor)
+	assert.Equal(t, "https://timestamp.example.com", urls.tsa)
 	assert.Equal(t, uint32(1), urls.rekorVersion)
 }
 
@@ -108,8 +108,8 @@ func TestResolveEffectiveURLs_WithSigningConfig(t *testing.T) {
 
 	urls, err := resolveEffectiveURLs(cfg, mustSC(t))
 	require.NoError(t, err)
-	assert.Equal(t, "https://fulcio.sc.example.com", urls.fulcio)
-	assert.Equal(t, "https://rekor.sc.example.com", urls.rekor)
+	assert.Equal(t, "https://fulcio.example.com", urls.fulcio)
+	assert.Equal(t, "https://rekor.example.com", urls.rekor)
 }
 
 func TestResolveEffectiveURLs_RekorV2_RequestedButSCOnlyV1(t *testing.T) {
