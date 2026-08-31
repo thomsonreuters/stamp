@@ -41,4 +41,4 @@ stamp fetch --log-index 12345
 
 - [verify-attestation.md](verify-attestation.md)
 - [upload-to-rekor.md](upload-to-rekor.md)
-- `../../reference/transparency.md`
+- [transparency.md](../../reference/transparency.md)
