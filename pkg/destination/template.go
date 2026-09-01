@@ -242,7 +242,11 @@ func resolveEnvVarsOrError(s string) (string, error) {
 		}
 
 		if unresolvedErr == nil {
-			unresolvedErr = fmt.Errorf("unresolved template variable %q: environment variable %q is not set and no default was provided", match, envName)
+			unresolvedErr = fmt.Errorf(
+				"unresolved template variable %q: environment variable %q is not set and no default was provided",
+				match,
+				envName,
+			)
 		}
 		return match
 	})

@@ -229,14 +229,14 @@ func (d *Destination) writeInternal(
 
 	if config.CreateDirs {
 		parentDir := filepath.Dir(outputPath)
-		if err := os.MkdirAll(parentDir, 0755); err != nil {
+		if err = os.MkdirAll(parentDir, 0755); err != nil {
 			return nil, destination.NewDestinationError("file", "create_directory",
 				fmt.Errorf("failed to create directory %s: %w", parentDir, err), false)
 		}
 	}
 
 	if !config.Overwrite {
-		if _, err := os.Stat(outputPath); err == nil {
+		if _, err = os.Stat(outputPath); err == nil {
 			return nil, destination.NewDestinationError("file", "overwrite_check",
 				fmt.Errorf("file exists and overwrite is disabled: %s", outputPath), false)
 		}
@@ -531,12 +531,12 @@ func (d *Destination) HealthCheck(ctx context.Context) error {
 	targetDir := filepath.Dir(testPath)
 
 	if config.CreateDirs {
-		if err := os.MkdirAll(targetDir, 0755); err != nil {
+		if err = os.MkdirAll(targetDir, 0755); err != nil {
 			return destination.NewDestinationError("file", "health_check",
 				fmt.Errorf("cannot create target directory %s: %w", targetDir, err), false)
 		}
 	} else {
-		if _, err := os.Stat(targetDir); os.IsNotExist(err) {
+		if _, err = os.Stat(targetDir); os.IsNotExist(err) {
 			return destination.NewDestinationError("file", "health_check",
 				fmt.Errorf("target directory %s does not exist and create_dirs is disabled", targetDir), false)
 		}
