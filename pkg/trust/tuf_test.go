@@ -183,7 +183,7 @@ func TestResolveTUFRootBytes_URLWithoutChecksumRejected(t *testing.T) {
 func TestFetchRootFromURL_ExceedsMaxSize(t *testing.T) {
 	// Serve exactly 1 byte over the cap.
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		buf := make([]byte, maxTUFRootSize+1)
+		buf := make([]byte, maxTUFRootSizeBytes+1)
 		_, _ = w.Write(buf)
 	}))
 	defer ts.Close()

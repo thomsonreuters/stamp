@@ -103,7 +103,7 @@ func buildTUFOptions(ctx context.Context, url, cachePath string, rootBytes []byt
 }
 
 // Real TUF roots are 5-15 KB; anything above this is hostile or misconfigured.
-const maxTUFRootSize = 1 << 20
+const maxTUFRootSizeBytes = 1 << 20
 
 func fetchRootFromURL(ctx context.Context, rawURL, checksum string, httpClient *http.Client) ([]byte, error) {
 	parsed, err := url.Parse(rawURL)
@@ -130,12 +130,12 @@ func fetchRootFromURL(ctx context.Context, rawURL, checksum string, httpClient *
 		return nil, fmt.Errorf("trust: fetch tuf root from %q: unexpected status %d", safeURL, resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(io.LimitReader(resp.Body, maxTUFRootSize+1))
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxTUFRootSizeBytes+1))
 	if err != nil {
 		return nil, fmt.Errorf("trust: read tuf root body from %q: %w", safeURL, err)
 	}
-	if len(body) > maxTUFRootSize {
-		return nil, fmt.Errorf("trust: tuf root at %q exceeds %d bytes (possible hostile or misconfigured server)", safeURL, maxTUFRootSize)
+	if len(body) > maxTUFRootSizeBytes {
+		return nil, fmt.Errorf("trust: tuf root at %q exceeds %d bytes (possible hostile or misconfigured server)", safeURL, maxTUFRootSizeBytes)
 	}
 
 	if checksum != "" {
