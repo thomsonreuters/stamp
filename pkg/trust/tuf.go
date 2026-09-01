@@ -61,26 +61,6 @@ func (r *tufResolver) Resolve(ctx context.Context) (*root.TrustedRoot, error) {
 	return tr, nil
 }
 
-func buildTUFOptions(ctx context.Context, url, cachePath string, rootBytes []byte, httpClient *http.Client) *sgtuf.Options {
-	f := fetcher.NewDefaultFetcher()
-	f.SetHTTPClient(httpClient)
-
-	opts := sgtuf.DefaultOptions().
-		WithContext(ctx).
-		WithRepositoryBaseURL(url).
-		WithFetcher(f).
-		WithCacheValidity(1)
-	if rootBytes != nil {
-		opts = opts.WithRoot(rootBytes)
-	}
-	if cachePath != "" {
-		opts = opts.WithCachePath(cachePath)
-	}
-	return opts
-}
-
-// resolveTUFRootBytes returns the initial TUF trust anchor, or nil when
-// sigstore-go's embedded root should be used.
 func resolveTUFRootBytes(ctx context.Context, opts Options, httpClient *http.Client) ([]byte, error) {
 	if len(opts.TUFRootBytes) > 0 {
 		return opts.TUFRootBytes, nil
@@ -102,6 +82,24 @@ func resolveTUFRootBytes(ctx context.Context, opts Options, httpClient *http.Cli
 		return nil, fmt.Errorf("trust: read tuf root %q: %w", opts.TUFRootPath, err)
 	}
 	return b, nil
+}
+
+func buildTUFOptions(ctx context.Context, url, cachePath string, rootBytes []byte, httpClient *http.Client) *sgtuf.Options {
+	f := fetcher.NewDefaultFetcher()
+	f.SetHTTPClient(httpClient)
+
+	opts := sgtuf.DefaultOptions().
+		WithContext(ctx).
+		WithRepositoryBaseURL(url).
+		WithFetcher(f).
+		WithCacheValidity(1)
+	if rootBytes != nil {
+		opts = opts.WithRoot(rootBytes)
+	}
+	if cachePath != "" {
+		opts = opts.WithCachePath(cachePath)
+	}
+	return opts
 }
 
 // Real TUF roots are 5-15 KB; anything above this is hostile or misconfigured.
