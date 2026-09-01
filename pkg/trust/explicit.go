@@ -32,6 +32,14 @@ type explicitResolver struct {
 }
 
 func (r *explicitResolver) Resolve(_ context.Context) (*root.TrustedRoot, error) {
+	// sigstore-go's TrustedRoot models each role as a collection so a
+	// single trust anchor can carry multiple entries — public sigstore's
+	// current trusted_root.json ships 2 Fulcio CAs (overlapping validity
+	// windows for key rotation) and 2 CT logs, for example. Explicit-flag
+	// mode only accepts one file per flag, so we populate at most one
+	// entry per collection, but the shapes match root.NewTrustedRoot's
+	// signature: slices for CAs and TSAs, map (keyed by hex log ID) for
+	// tlogs and CT logs.
 	var cas []root.CertificateAuthority
 	var tsas []root.TimestampingAuthority
 	tlogs := map[string]*root.TransparencyLog{}

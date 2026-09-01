@@ -56,7 +56,7 @@ func BuildOptionsFromConfig(ctx context.Context, cfg config.ConfigurationIface, 
 		log.InfoContext(ctx, "sigstore: skipping trust resolution — no sigstore services in use")
 	}
 
-	urls, err := resolveEffectiveURLs(cfg, sc)
+	urls, err := resolveSigstoreServices(cfg, sc)
 	if err != nil {
 		return opts, pkgerrors.WrapWithContext(err, "sigstore", "build_opts", "failed to resolve effective service URLs")
 	}
@@ -118,16 +118,16 @@ func hasExplicitServiceURL(cfg config.ConfigurationIface) bool {
 	return cfg.IsSet(flags.TSAURL)
 }
 
-type effectiveURLs struct {
+type resolvedServices struct {
 	fulcio       string
 	rekor        string
 	tsa          string
 	rekorVersion uint32
 }
 
-// resolveEffectiveURLs computes service URLs, preferring SigningConfig over CLI flags.
-func resolveEffectiveURLs(cfg config.ConfigurationIface, sc *root.SigningConfig) (effectiveURLs, error) {
-	urls := effectiveURLs{
+// resolveSigstoreServices computes service URLs, preferring SigningConfig over CLI flags.
+func resolveSigstoreServices(cfg config.ConfigurationIface, sc *root.SigningConfig) (resolvedServices, error) {
+	urls := resolvedServices{
 		fulcio:       cfg.GetString(flags.FulcioURL),
 		rekor:        cfg.GetString(flags.RekorURL),
 		tsa:          cfg.GetString(flags.TSAURL),

@@ -67,9 +67,9 @@ func TestNewSignerKeyTrustedMaterial_UnsupportedPubKeyErrors(t *testing.T) {
 // sign.Bundle's post-verify.
 func TestSignerKeyTrustedMaterial_PublicKeyVerifierReturnsInjectedKey(t *testing.T) {
 	base := &stubBase{}
-	priv := genECDSAKey(t)
+	key := genECDSAKey(t)
 
-	wrapped, err := NewSignerKeyTrustedMaterial(base, priv.Public())
+	wrapped, err := NewSignerKeyTrustedMaterial(base, key.Public())
 	require.NoError(t, err)
 
 	for _, hint := range []string{"", "any-hint", "another-hint", "sha256:abc"} {
@@ -81,7 +81,7 @@ func TestSignerKeyTrustedMaterial_PublicKeyVerifierReturnsInjectedKey(t *testing
 		require.NoError(t, err)
 		equaler, ok := got.(interface{ Equal(x crypto.PublicKey) bool })
 		require.True(t, ok, "public key must implement Equal(crypto.PublicKey)")
-		assert.True(t, equaler.Equal(priv.Public()), "returned key must equal signer's public key")
+		assert.True(t, equaler.Equal(key.Public()), "returned key must equal signer's public key")
 	}
 	assert.False(t, base.pkvCalled, "base.PublicKeyVerifier must not be reached when keyMaterial is set")
 }
@@ -90,9 +90,9 @@ func TestSignerKeyTrustedMaterial_PublicKeyVerifierReturnsInjectedKey(t *testing
 // wrapped material still exposes Fulcio CAs, Rekor logs, and TSA chains.
 func TestSignerKeyTrustedMaterial_DelegatesOtherMethods(t *testing.T) {
 	base := &stubBase{}
-	priv := genECDSAKey(t)
+	key := genECDSAKey(t)
 
-	wrapped, err := NewSignerKeyTrustedMaterial(base, priv.Public())
+	wrapped, err := NewSignerKeyTrustedMaterial(base, key.Public())
 	require.NoError(t, err)
 
 	// BaseTrustedMaterial provides zero-value slices/maps for each of these.
