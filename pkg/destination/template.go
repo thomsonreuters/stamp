@@ -217,8 +217,8 @@ func resolveEnvVars(s string) string {
 }
 
 // resolveEnvVarsOrError resolves environment variables in the string, like resolveEnvVars,
-// but returns an error for a ${var} placeholder whose environment variable is unset and
-// which has no default value, instead of silently resolving it to an empty string.
+// but returns an error for a ${var} placeholder whose environment variable is unset (or empty)
+// and which has no default value, instead of silently resolving it to an empty string.
 func resolveEnvVarsOrError(s string) (string, error) {
 	var unresolvedErr error
 	result := envVarRegex.ReplaceAllStringFunc(s, func(match string) string {
