@@ -54,6 +54,15 @@ func TestResolveTemplate(t *testing.T) {
 			expected: "attestations/abc-123/git.json",
 		},
 		{
+			name:     "resolves go-template dot syntax equivalently",
+			template: "attestations/{{ .id}}/{{.attestor }}.json",
+			attestation: &Attestation{
+				ID:         "abc-123",
+				AttestorID: "git",
+			},
+			expected: "attestations/abc-123/git.json",
+		},
+		{
 			name:     "sanitizes predicate type for path and derives short predicate type",
 			template: "${predicate_type}/${short_predicate_type}.json",
 			attestation: &Attestation{

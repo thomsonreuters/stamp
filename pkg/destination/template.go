@@ -110,15 +110,19 @@ func ResolveTemplate(template string, attestation *Attestation, workflowName str
 	// Replace template variables (both ${var} and {{.var}} syntax)
 	var unresolvedErr error
 	result = templateVarRegex.ReplaceAllStringFunc(result, func(match string) string {
-		// Extract variable name from either syntax
+
+		// Extract variable name from either syntax using the regex captures so
+		// whitespace variants like {{ .var }} are handled correctly.
+		submatch := templateVarRegex.FindStringSubmatch(match)
+		if len(submatch) != 3 {
+			return match
+		}
 		var varName string
-		isDotSyntax := false
-		if after, found := strings.CutPrefix(match, "${"); found {
-			varName = strings.TrimSuffix(after, "}")
+		isDotSyntax := submatch[1] == ""
+		if isDotSyntax {
+			varName = submatch[2]
 		} else {
-			// {{.var}} syntax
-			isDotSyntax = true
-			varName = strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(match, "{{."), "}}"))
+			varName = submatch[1]
 		}
 
 		if val, ok := vars[varName]; ok {
