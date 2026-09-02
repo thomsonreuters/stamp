@@ -114,10 +114,10 @@ func TestResolveTemplate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
- 			t.Setenv("TEST_STAMP_RESOLVE_TEMPLATE_UNSET_VAR", "")
- 			t.Setenv("id", "")
- 			t.Setenv("attestor", "")
- 			t.Setenv("unknown_var", "")
+			t.Setenv("TEST_STAMP_RESOLVE_TEMPLATE_UNSET_VAR", "")
+			t.Setenv("id", "")
+			t.Setenv("attestor", "")
+			t.Setenv("unknown_var", "")
 			actual, err := ResolveTemplate(tt.template, tt.attestation, tt.workflowName)
 			if tt.wantErr {
 				require.Error(t, err)

@@ -110,7 +110,6 @@ func ResolveTemplate(template string, attestation *Attestation, workflowName str
 	// Replace template variables (both ${var} and {{.var}} syntax)
 	var unresolvedErr error
 	result = templateVarRegex.ReplaceAllStringFunc(result, func(match string) string {
-
 		// Extract variable name from either syntax using the regex captures so
 		// whitespace variants like {{ .var }} are handled correctly.
 		submatch := templateVarRegex.FindStringSubmatch(match)
