@@ -26,6 +26,7 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/thomsonreuters/stamp/pkg/config"
@@ -36,6 +37,17 @@ import (
 	"github.com/thomsonreuters/stamp/pkg/signing/container"
 	"github.com/thomsonreuters/stamp/pkg/signing/sigstore"
 )
+
+// trustedRootFixture returns the absolute path to the checked-in
+// testdata/trusted_root.json. Setting flags.TrustedRootPath to this in a
+// test's viper routes the trust resolver into file mode — no network,
+// no TUF fetch, no SigningConfig lookup (unset viper keys return zero,
+// which is what the resolver needs to take the file-source branch).
+func trustedRootFixture(t *testing.T) string {
+	t.Helper()
+	_, self, _, _ := runtime.Caller(0)
+	return filepath.Join(filepath.Dir(self), "testdata", "trusted_root.json")
+}
 
 // writeTempECDSAKey writes an unencrypted PKCS#8 P-256 private key to a
 // temp file and returns its path. Cleanup is handled by t.TempDir.
@@ -51,8 +63,19 @@ func writeTempECDSAKey(t *testing.T) string {
 	return path
 }
 
+// newTestConfig returns a real config.ConfigurationIface backed by a fresh
+// viper. Callers set only the flags they care about; every other flag
+// returns the zero value from viper (empty string, 0, false).
+func newTestConfig(setup func(*viper.Viper)) config.ConfigurationIface {
+	v := viper.New()
+	if setup != nil {
+		setup(v)
+	}
+	return config.NewConfiguration(v)
+}
+
 func TestNewContainerSignOp(t *testing.T) {
-	cfg := config.NewMockConfiguration()
+	cfg := newTestConfig(nil)
 	op := NewContainerSignOp(cfg, logger.NewNoop(), output.NewNoop())
 	require.NotNil(t, op)
 	assert.Same(t, cfg, op.config)
@@ -91,79 +114,110 @@ func TestRegistryCredsFromEnv(t *testing.T) {
 
 func TestContainerSignOp_Validate(t *testing.T) {
 	tests := []struct {
-		name       string
-		imageRef   string
-		signer     string
-		privateKey string
-		fulcioURL  string
-		rekorOn    bool
-		rekorURL   string
-		envUser    string
-		envPass    string
-		wantErr    string
+		name     string
+		imageRef string
+		setup    func(*viper.Viper)
+		envUser  string
+		envPass  string
+		wantErr  string
 	}{
 		{
 			name:     "missing image ref",
 			imageRef: "",
-			signer:   "key", privateKey: "/tmp/k",
+			setup: func(v *viper.Viper) {
+				v.Set(flags.Signer, "key")
+				v.Set(flags.PrivateKey, "/tmp/k")
+			},
 			envUser: "u", envPass: "p",
 			wantErr: "image reference is required",
 		},
 		{
 			name:     "empty signer",
-			imageRef: "registry/app:v1", signer: "",
-			envUser: "u", envPass: "p",
+			imageRef: "registry/app:v1",
+			setup:    func(v *viper.Viper) { v.Set(flags.Signer, "") },
+			envUser:  "u", envPass: "p",
 			wantErr: "--signer is required",
 		},
 		{
 			name:     "unsupported signer",
-			imageRef: "registry/app:v1", signer: "kms",
-			envUser: "u", envPass: "p",
+			imageRef: "registry/app:v1",
+			setup:    func(v *viper.Viper) { v.Set(flags.Signer, "kms") },
+			envUser:  "u", envPass: "p",
 			wantErr: `unsupported signer "kms"`,
 		},
 		{
 			name:     "key signer missing private key",
-			imageRef: "registry/app:v1", signer: "key",
-			envUser: "u", envPass: "p",
+			imageRef: "registry/app:v1",
+			setup:    func(v *viper.Viper) { v.Set(flags.Signer, "key") },
+			envUser:  "u", envPass: "p",
 			wantErr: "--private-key is required",
 		},
 		{
 			name:     "fulcio signer with malformed URL",
-			imageRef: "registry/app:v1", signer: "fulcio", fulcioURL: "not-a-url",
+			imageRef: "registry/app:v1",
+			setup: func(v *viper.Viper) {
+				v.Set(flags.Signer, "fulcio")
+				v.Set(flags.FulcioURL, "not-a-url")
+			},
 			envUser: "u", envPass: "p",
 			wantErr: "invalid Fulcio URL",
 		},
 		{
 			name:     "rekor enabled with malformed URL",
-			imageRef: "registry/app:v1", signer: "key", privateKey: "/tmp/k",
-			rekorOn: true, rekorURL: "not-a-url",
+			imageRef: "registry/app:v1",
+			setup: func(v *viper.Viper) {
+				v.Set(flags.Signer, "key")
+				v.Set(flags.PrivateKey, "/tmp/k")
+				v.Set(flags.TransparencyEnable, true)
+				v.Set(flags.RekorURL, "not-a-url")
+			},
 			envUser: "u", envPass: "p",
 			wantErr: "invalid Rekor URL",
 		},
 		{
 			name:     "both registry env vars unset is valid (anonymous / keychain)",
-			imageRef: "registry/app:v1", signer: "key", privateKey: "/tmp/k",
+			imageRef: "registry/app:v1",
+			setup: func(v *viper.Viper) {
+				v.Set(flags.Signer, "key")
+				v.Set(flags.PrivateKey, "/tmp/k")
+			},
 		},
 		{
 			name:     "registry password without username is rejected",
-			imageRef: "registry/app:v1", signer: "key", privateKey: "/tmp/k",
+			imageRef: "registry/app:v1",
+			setup: func(v *viper.Viper) {
+				v.Set(flags.Signer, "key")
+				v.Set(flags.PrivateKey, "/tmp/k")
+			},
 			envPass: "p",
 			wantErr: "must be set together",
 		},
 		{
 			name:     "registry username without password is rejected",
-			imageRef: "registry/app:v1", signer: "key", privateKey: "/tmp/k",
+			imageRef: "registry/app:v1",
+			setup: func(v *viper.Viper) {
+				v.Set(flags.Signer, "key")
+				v.Set(flags.PrivateKey, "/tmp/k")
+			},
 			envUser: "u",
 			wantErr: "must be set together",
 		},
 		{
 			name:     "valid key mode with creds",
-			imageRef: "registry/app:v1", signer: "key", privateKey: "/tmp/k",
+			imageRef: "registry/app:v1",
+			setup: func(v *viper.Viper) {
+				v.Set(flags.Signer, "key")
+				v.Set(flags.PrivateKey, "/tmp/k")
+			},
 			envUser: "u", envPass: "p",
 		},
 		{
 			name:     "valid fulcio mode with creds",
-			imageRef: "registry/app:v1", signer: "fulcio", fulcioURL: "https://fulcio.example.com",
+			imageRef: "registry/app:v1",
+			setup: func(v *viper.Viper) {
+				v.Set(flags.Signer, "fulcio")
+				v.Set(flags.FulcioURL, "https://fulcio.example.com")
+			},
 			envUser: "u", envPass: "p",
 		},
 	}
@@ -173,14 +227,7 @@ func TestContainerSignOp_Validate(t *testing.T) {
 			t.Setenv(envRegistryUsername, tt.envUser)
 			t.Setenv(envRegistryPassword, tt.envPass)
 
-			cfg := config.NewMockConfiguration()
-			cfg.On("GetString", flags.Signer).Return(tt.signer)
-			cfg.On("GetString", flags.PrivateKey).Return(tt.privateKey).Maybe()
-			cfg.On("GetString", flags.FulcioURL).Return(tt.fulcioURL).Maybe()
-			cfg.On("GetBool", flags.Insecure).Return(false).Maybe()
-			cfg.On("GetBool", flags.TransparencyEnable).Return(tt.rekorOn)
-			cfg.On("GetString", flags.RekorURL).Return(tt.rekorURL).Maybe()
-
+			cfg := newTestConfig(tt.setup)
 			op := NewContainerSignOp(cfg, logger.NewNoop(), output.NewNoop())
 			err := op.Validate(tt.imageRef)
 
@@ -201,15 +248,11 @@ func TestContainerSignOp_buildSignOptions_KeyMode(t *testing.T) {
 	t.Setenv(envRegistryPassword, "p")
 
 	keyPath := writeTempECDSAKey(t)
-
-	cfg := config.NewMockConfiguration()
-	cfg.On("GetString", flags.Signer).Return("key")
-	cfg.On("GetString", flags.PrivateKey).Return(keyPath)
-	cfg.On("GetString", flags.CryptographyKeyPassword).Return("")
-	cfg.On("GetString", flags.CryptographyKeyPasswordFile).Return("")
-	cfg.On("GetBool", flags.CryptographyKeyPasswordPrompt).Return(false)
-	cfg.On("GetBool", flags.TransparencyEnable).Return(false).Maybe()
-	cfg.On("GetString", flags.TSAURL).Return("").Maybe()
+	cfg := newTestConfig(func(v *viper.Viper) {
+		v.Set(flags.Signer, "key")
+		v.Set(flags.PrivateKey, keyPath)
+		v.Set(flags.TrustedRootPath, trustedRootFixture(t))
+	})
 
 	op := NewContainerSignOp(cfg, logger.NewNoop(), output.NewNoop())
 	opts, err := op.buildSignOptions(context.Background())
@@ -219,26 +262,20 @@ func TestContainerSignOp_buildSignOptions_KeyMode(t *testing.T) {
 	require.NotNil(t, opts.Key.Signer)
 	require.NotEmpty(t, opts.Key.Hint)
 	require.NotNil(t, opts.Registry)
-	cfg.AssertExpectations(t)
 }
 
 func TestContainerSignOp_buildSignOptions_FulcioMode(t *testing.T) {
 	t.Setenv(envRegistryUsername, "u")
 	t.Setenv(envRegistryPassword, "p")
 
-	cfg := config.NewMockConfiguration()
-	cfg.On("GetString", flags.Signer).Return("fulcio")
-	cfg.On("GetString", flags.FulcioURL).Return("https://fulcio.example.com")
-	cfg.On("GetString", flags.OIDCToken).Return("direct-token")
-	cfg.On("GetString", flags.OIDCTokenFile).Return("")
-	cfg.On("GetBool", flags.UseSpire).Return(false)
-	cfg.On("GetString", flags.SPIRESocket).Return("")
-	cfg.On("GetBool", flags.UseGitHub).Return(false)
-	cfg.On("GetBool", flags.Insecure).Return(false)
-	cfg.On("GetBool", flags.TransparencyEnable).Return(true)
-	cfg.On("GetString", flags.RekorURL).Return("https://rekor.example.com")
-	cfg.On("GetInt", flags.RekorVersion).Return(1).Maybe()
-	cfg.On("GetString", flags.TSAURL).Return("").Maybe()
+	cfg := newTestConfig(func(v *viper.Viper) {
+		v.Set(flags.Signer, "fulcio")
+		v.Set(flags.FulcioURL, "https://fulcio.example.com")
+		v.Set(flags.OIDCToken, "direct-token")
+		v.Set(flags.TransparencyEnable, true)
+		v.Set(flags.RekorURL, "https://rekor.example.com")
+		v.Set(flags.TrustedRootPath, trustedRootFixture(t))
+	})
 
 	op := NewContainerSignOp(cfg, logger.NewNoop(), output.NewNoop())
 	opts, err := op.buildSignOptions(context.Background())
@@ -253,59 +290,49 @@ func TestContainerSignOp_buildSignOptions_FulcioMode(t *testing.T) {
 	require.NotNil(t, opts.Registry)
 	assert.Equal(t, "u", opts.Registry.Username)
 	assert.Equal(t, "p", opts.Registry.Password)
-	cfg.AssertExpectations(t)
 }
 
 func TestContainerSignOp_buildSignOptions_NoRegistryEnv(t *testing.T) {
 	t.Setenv(envRegistryUsername, "")
 	t.Setenv(envRegistryPassword, "")
 
-	cfg := config.NewMockConfiguration()
-	cfg.On("GetString", flags.Signer).Return("fulcio")
-	cfg.On("GetString", flags.FulcioURL).Return("https://fulcio.example.com")
-	cfg.On("GetString", flags.OIDCToken).Return("direct-token")
-	cfg.On("GetString", flags.OIDCTokenFile).Return("")
-	cfg.On("GetBool", flags.UseSpire).Return(false)
-	cfg.On("GetString", flags.SPIRESocket).Return("")
-	cfg.On("GetBool", flags.UseGitHub).Return(false)
-	cfg.On("GetBool", flags.Insecure).Return(false)
-	cfg.On("GetBool", flags.TransparencyEnable).Return(false)
-	cfg.On("GetString", flags.TSAURL).Return("").Maybe()
+	cfg := newTestConfig(func(v *viper.Viper) {
+		v.Set(flags.Signer, "fulcio")
+		v.Set(flags.FulcioURL, "https://fulcio.example.com")
+		v.Set(flags.OIDCToken, "direct-token")
+		v.Set(flags.TrustedRootPath, trustedRootFixture(t))
+	})
 
 	op := NewContainerSignOp(cfg, logger.NewNoop(), output.NewNoop())
 	opts, err := op.buildSignOptions(context.Background())
 
 	require.NoError(t, err)
 	assert.Nil(t, opts.Registry, "Registry should stay nil when env vars are unset (Validate is what enforces the requirement)")
-	cfg.AssertExpectations(t)
 }
 
 func TestContainerSignOp_Execute_BuildSignOptionsError(t *testing.T) {
 	t.Setenv(envRegistryUsername, "u")
 	t.Setenv(envRegistryPassword, "p")
 
-	cfg := config.NewMockConfiguration()
-	cfg.On("GetString", flags.Signer).Return("key")
-	cfg.On("GetString", flags.PrivateKey).Return("/nonexistent/key.pem")
-	cfg.On("GetString", flags.CryptographyKeyPassword).Return("")
-	cfg.On("GetString", flags.CryptographyKeyPasswordFile).Return("")
-	cfg.On("GetBool", flags.CryptographyKeyPasswordPrompt).Return(false)
-	cfg.On("GetBool", flags.TransparencyEnable).Return(false).Maybe()
+	cfg := newTestConfig(func(v *viper.Viper) {
+		v.Set(flags.Signer, "key")
+		v.Set(flags.PrivateKey, "/nonexistent/key.pem")
+		v.Set(flags.TrustedRootPath, trustedRootFixture(t))
+	})
 
 	op := NewContainerSignOp(cfg, logger.NewNoop(), output.NewNoop())
 	err := op.Execute(context.Background(), "registry.example.com/app:v1")
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to load private key")
-	cfg.AssertExpectations(t)
 }
 
 func TestContainerSignOp_writeBundle_File(t *testing.T) {
 	dest := filepath.Join(t.TempDir(), "bundle.json")
 
-	cfg := config.NewMockConfiguration()
-	cfg.On("GetString", flags.ContainerSignOutput).Return(dest)
-	cfg.On("GetBool", flags.ContainerSignOverwrite).Return(false).Maybe()
+	cfg := newTestConfig(func(v *viper.Viper) {
+		v.Set(flags.ContainerSignOutput, dest)
+	})
 
 	op := NewContainerSignOp(cfg, logger.NewNoop(), output.NewNoop())
 	require.NoError(t, op.writeBundle(context.Background(), &container.Result{
@@ -328,9 +355,9 @@ func TestContainerSignOp_writeBundle_RefusesToOverwriteWithoutFlag(t *testing.T)
 	dest := filepath.Join(t.TempDir(), "bundle.json")
 	require.NoError(t, os.WriteFile(dest, []byte("existing"), 0o600))
 
-	cfg := config.NewMockConfiguration()
-	cfg.On("GetString", flags.ContainerSignOutput).Return(dest)
-	cfg.On("GetBool", flags.ContainerSignOverwrite).Return(false)
+	cfg := newTestConfig(func(v *viper.Viper) {
+		v.Set(flags.ContainerSignOutput, dest)
+	})
 
 	op := NewContainerSignOp(cfg, logger.NewNoop(), output.NewNoop())
 	err := op.writeBundle(context.Background(), &container.Result{
@@ -348,9 +375,10 @@ func TestContainerSignOp_writeBundle_OverwritesWithFlag(t *testing.T) {
 	dest := filepath.Join(t.TempDir(), "bundle.json")
 	require.NoError(t, os.WriteFile(dest, []byte("existing"), 0o600))
 
-	cfg := config.NewMockConfiguration()
-	cfg.On("GetString", flags.ContainerSignOutput).Return(dest)
-	cfg.On("GetBool", flags.ContainerSignOverwrite).Return(true)
+	cfg := newTestConfig(func(v *viper.Viper) {
+		v.Set(flags.ContainerSignOutput, dest)
+		v.Set(flags.ContainerSignOverwrite, true)
+	})
 
 	op := NewContainerSignOp(cfg, logger.NewNoop(), output.NewNoop())
 	require.NoError(t, op.writeBundle(context.Background(), &container.Result{
@@ -374,8 +402,7 @@ func TestContainerSignOp_writeBundle_Stdout(t *testing.T) {
 	require.NoError(t, err)
 	os.Stdout = f //nolint:reassign // test-only stdout capture; restored on cleanup
 
-	cfg := config.NewMockConfiguration()
-	cfg.On("GetString", flags.ContainerSignOutput).Return("")
+	cfg := newTestConfig(nil)
 
 	op := NewContainerSignOp(cfg, logger.NewNoop(), output.NewNoop())
 	require.NoError(t, op.writeBundle(context.Background(), &container.Result{
@@ -389,10 +416,10 @@ func TestContainerSignOp_writeBundle_Stdout(t *testing.T) {
 }
 
 func TestContainerSignOp_writeBundle_FileError(t *testing.T) {
-	cfg := config.NewMockConfiguration()
-	// Point at a nonexistent directory to force an os.OpenFile failure.
-	cfg.On("GetString", flags.ContainerSignOutput).Return("/nonexistent-dir/bundle.json")
-	cfg.On("GetBool", flags.ContainerSignOverwrite).Return(false).Maybe()
+	cfg := newTestConfig(func(v *viper.Viper) {
+		// Point at a nonexistent directory to force an os.OpenFile failure.
+		v.Set(flags.ContainerSignOutput, "/nonexistent-dir/bundle.json")
+	})
 
 	op := NewContainerSignOp(cfg, logger.NewNoop(), output.NewNoop())
 	err := op.writeBundle(context.Background(), &container.Result{Result: sigstore.Result{BundleJSON: []byte("x")}})

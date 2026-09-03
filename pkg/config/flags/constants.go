@@ -180,6 +180,22 @@ const (
 )
 
 // ============================================================================
+// TRUST CONFIGURATION
+// ============================================================================
+
+const (
+	TrustedRootPath   = "pipeline.trust.trusted_root"
+	TUFURL            = "pipeline.trust.tuf.url"
+	TUFRootPath       = "pipeline.trust.tuf.root"
+	TUFRootChecksum   = "pipeline.trust.tuf.root_checksum"
+	FulcioCertChain   = "pipeline.trust.fulcio.cert_chain"
+	RekorPublicKey    = "pipeline.trust.rekor.public_key"
+	TSACertChain      = "pipeline.trust.tsa.cert_chain"
+	SigningConfigPath = "pipeline.trust.signing_config.path"
+	UseSigningConfig  = "pipeline.trust.signing_config.use"
+)
+
+// ============================================================================
 // PIPELINE SETTINGS
 // ============================================================================
 
