@@ -64,5 +64,5 @@ A passing signature alone does not establish provenance; combine all three check
 ## See also
 
 - [fetch-from-rekor.md](fetch-from-rekor.md)
-- `../../reference/transparency.md`
-- `../../explanation/transparency-and-verification.md`
+- [transparency.md](../../reference/transparency.md)
+- [transparency-and-verification.md](../../explanation/transparency-and-verification.md)

@@ -61,6 +61,6 @@ Verifiers do not need `--public-key`. The certificate is extracted from the enve
 
 ## See also
 
-- `../../explanation/signing-and-trust.md`
+- [signing-and-trust.md](../../explanation/signing-and-trust.md)
 - [verify-attestation.md](verify-attestation.md)
 - [upload-to-rekor.md](upload-to-rekor.md)

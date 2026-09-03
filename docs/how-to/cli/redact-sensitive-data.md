@@ -129,5 +129,6 @@ predicate itself.
 
 ## See also
 
-- `../../reference/attestors.md`
-- `../../explanation/security-considerations.md`
+- [attestors.md](../../reference/attestors.md)
+- [security-considerations.md](../../explanation/security-considerations.md)
+

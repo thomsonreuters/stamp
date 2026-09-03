@@ -74,6 +74,6 @@ stamp --config ./stamp.yaml run example-release --persist \
 
 ## See also
 
-- `../../reference/destinations.md`
+- [destinations.md](../../reference/destinations.md)
 - [sign-with-local-key.md](sign-with-local-key.md)
 - [sign-keyless-with-fulcio.md](sign-keyless-with-fulcio.md)
