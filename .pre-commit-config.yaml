@@ -57,7 +57,7 @@ repos:
   - repo: https://github.com/DavidAnson/markdownlint-cli2
     rev: 996abf60411a8d954288ac9856aae7602b80cbda # v0.22.1
     hooks:
-      - id: markdownlint-cli2-docker
+      - id: markdownlint-cli2
 
   # GitHub Actions workflow lint
   - repo: https://github.com/rhysd/actionlint

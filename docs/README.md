@@ -11,6 +11,7 @@ Step-by-step lessons that take a newcomer to a successful outcome.
 - [Your first signed attestation](tutorials/01-first-attestation.md)
 - [Sign with Fulcio and upload to Rekor](tutorials/02-signed-and-uploaded.md)
 - [Build a multi-attestor workflow](tutorials/03-workflow.md)
+- [A complete end-to-end scenario](tutorials/04-end-to-end.md)
 
 ## How-to guides — recipes
 
