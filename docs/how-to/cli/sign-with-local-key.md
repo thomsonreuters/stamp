@@ -57,4 +57,4 @@ Envelopes produced this way do not embed a certificate. Whoever verifies the att
 
 - [generate-keys.md](generate-keys.md)
 - [verify-attestation.md](verify-attestation.md)
-- `../../reference/signing.md`
+- [signing.md](../../reference/signing.md)

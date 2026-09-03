@@ -48,4 +48,4 @@ Create a new signing key pair for use with `--signer key`.
 
 - [sign-with-local-key.md](sign-with-local-key.md)
 - [sign-keyless-with-fulcio.md](sign-keyless-with-fulcio.md)
-- `../../reference/signing.md`
+- [signing.md](../../reference/signing.md)
