@@ -13,7 +13,6 @@ Step-by-step lessons that take a newcomer to a successful outcome.
 - [Build a multi-attestor workflow](tutorials/03-workflow.md)
 - [A complete end-to-end scenario](tutorials/04-end-to-end.md)
 
-
 ## How-to guides — recipes
 
 Task-focused instructions for users who already know what they want to do.
