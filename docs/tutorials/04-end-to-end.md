@@ -80,6 +80,7 @@ jq keys attestations/command-1787842775.json
 ```
 
 This prints out:
+
 ```
 [
   "payload",
@@ -90,8 +91,9 @@ This prints out:
 
 Note how the interesting bit is encoded in the nested payload.
 
-
 ## Step 3: Unwrap the payload
+
+Let us unwrap the base64-encoded payload:
 
 ```
 jq -r '.payload' attestations/command-1787842775.json | base64 -d | jq '.'
@@ -159,6 +161,7 @@ and see how this generalizes to arbitrary fields, like a pass rate in a unit tes
 coverage rate, or a score in a security scan.
 
 Store the unwrapped command attestation in a temp file:
+
 ```
 jq -r '.payload' attestations/command-1787842775.json | base64 -d > attestations/command-1787842775.payload.json
 ```
@@ -170,7 +173,9 @@ Run
 ```
 jq -r '.payload' attestations/command-1787842775.json | base64 -d | jq '.predicate.execution.exit_code'
 ```
+
 or
+
 ```
 cat attestations/command-1787842775.payload.json | jq '.predicate.execution.exit_code'
 ```
