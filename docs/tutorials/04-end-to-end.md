@@ -188,7 +188,7 @@ and this shows:
 
 ## Step 5: Write a policy in rego
 
-Based on the [OPA tutorial] (https://www.openpolicyagent.org/docs#complete-example),
+Based on the [OPA tutorial](https://www.openpolicyagent.org/docs#complete-example),
 let us now write a policy in rego, named `command.rego` with the following contents:
 
 ```
