@@ -55,7 +55,7 @@ repos:
 
   # Markdown lint
   - repo: https://github.com/DavidAnson/markdownlint-cli2
-    rev: 996abf60411a8d954288ac9856aae7602b80cbda # v0.22.1
+    rev: b82a6c8896e491b9cb377a99ff3412131920681b # v0.23.2
     hooks:
       - id: markdownlint-cli2-docker
 
