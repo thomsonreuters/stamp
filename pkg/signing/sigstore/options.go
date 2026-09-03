@@ -20,40 +20,36 @@ import (
 	"fmt"
 
 	protobundle "github.com/sigstore/protobuf-specs/gen/pb-go/bundle/v1"
+	"github.com/sigstore/sigstore-go/pkg/root"
 	"github.com/sigstore/sigstore-go/pkg/sign"
 )
 
-// Options for Signer.SignBundle. Exactly one of Key or Fulcio must be set.
-// Rekor is optional; nil skips transparency-log upload. TSA is required
-// when Rekor.Version == 2.
+// Options configures Signer.SignBundle. Exactly one of Key or Fulcio must be set.
 type Options struct {
-	Key    *KeyOptions
-	Fulcio *FulcioOptions
-	Rekor  *RekorOptions
-	TSA    *TSAOptions
+	Key           *KeyOptions
+	Fulcio        *FulcioOptions
+	Rekor         *RekorOptions
+	TSA           *TSAOptions
+	TrustedRoot   *root.TrustedRoot
+	SigningConfig *root.SigningConfig
 }
 
 type KeyOptions struct {
 	Signer crypto.Signer
-	// Hint is the key id embedded in the DSSE signature so verifiers
-	// know which public key to check against.
-	Hint []byte
+	Hint   []byte // key id for verifier lookup
 }
 
 type FulcioOptions struct {
-	URL string
-	// IDToken's issuer must be trusted by the target Fulcio instance.
+	URL     string
 	IDToken string
 }
 
 type RekorOptions struct {
-	URL string
-	// Version selects the Rekor API. 0/1 = classic Rekor, 2 = rekor-tiles.
-	Version uint32
+	URL     string
+	Version uint32 // 0/1 = classic Rekor, 2 = rekor-tiles
 }
 
-// TSAOptions configures an RFC 3161 Timestamp Authority. Required when
-// Rekor v2 is in use because v2 entries have integrated_time = 0.
+// TSAOptions configures an RFC 3161 Timestamp Authority. Required for Rekor v2.
 type TSAOptions struct {
 	URL string
 }

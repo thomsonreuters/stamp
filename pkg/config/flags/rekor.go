@@ -33,13 +33,15 @@ var RekorEnableFlags = plugincobra.FlagGroup{
 	},
 }
 
+const DefaultRekorURL = "https://rekor.sigstore.dev"
+
 // RekorServerFlags contains Rekor server configuration.
 var RekorServerFlags = plugincobra.FlagGroup{
 	"rekor-url": {
 		Name:       "rekor-url",
 		ConfigPath: RekorURL,
 		Type:       plugincobra.StringFlag,
-		Default:    "https://rekor.sigstore.dev",
+		Default:    DefaultRekorURL,
 		Help:       "Rekor server URL",
 		Constraints: &plugincobra.FlagConstraints{
 			RequiresTLS: true,

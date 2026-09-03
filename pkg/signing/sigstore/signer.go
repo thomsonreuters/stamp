@@ -12,11 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package sigstore produces sigstore Bundle v0.3 signatures over arbitrary
-// payloads. Callers supply the payload and payloadType (typically an
-// in-toto Statement with application/vnd.in-toto+json); the package handles
-// keypair adaptation, Fulcio certificate issuance, Rekor entry submission,
-// and bundle serialization.
+// Package sigstore produces sigstore Bundle v0.3 signatures.
 package sigstore
 
 import (
@@ -30,8 +26,7 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
-// Signer is safe to reuse across many SignBundle calls; per-call config
-// (key material, Fulcio token, Rekor URL) lives in Options.
+// Signer produces sigstore bundles. Safe for reuse across calls.
 type Signer struct {
 	logger logger.Logger
 }
@@ -40,9 +35,7 @@ func NewSigner(log logger.Logger) *Signer {
 	return &Signer{logger: log}
 }
 
-// SignBundle signs payload with the material specified by opts and returns
-// a sigstore Bundle v0.3. payloadType is the DSSE payload type, e.g.
-// intoto.PayloadType ("application/vnd.in-toto+json").
+// SignBundle signs payload and returns a sigstore Bundle v0.3.
 func (s *Signer) SignBundle(ctx context.Context, payload []byte, payloadType string, opts Options) (*Result, error) {
 	if err := opts.Validate(); err != nil {
 		return nil, err
@@ -58,6 +51,22 @@ func (s *Signer) SignBundle(ctx context.Context, payload []byte, payloadType str
 		CertificateProvider:        certProvider,
 		CertificateProviderOptions: certOpts,
 	}
+
+	if opts.TrustedRoot != nil {
+		bundleOpts.TrustedRoot = opts.TrustedRoot
+		// For user-key signing, wrap so sign.Bundle's post-verify can find
+		// the signer's key via PublicKeyVerifier(hint). Without this,
+		// CompareKey against public sigstore's trusted_root always fails
+		// because trusted_root does not carry user keys.
+		if opts.Key != nil && opts.Key.Signer != nil {
+			wrapped, werr := newSignerKeyTrustedMaterial(bundleOpts.TrustedRoot, opts.Key.Signer.Public())
+			if werr != nil {
+				return nil, fmt.Errorf("sigstore sign: wrap trusted material: %w", werr)
+			}
+			bundleOpts.TrustedRoot = wrapped
+		}
+	}
+
 	if opts.Rekor != nil {
 		bundleOpts.TransparencyLogs = []sign.Transparency{
 			sign.NewRekor(&sign.RekorOptions{
@@ -79,6 +88,7 @@ func (s *Signer) SignBundle(ctx context.Context, payload []byte, payloadType str
 		"rekor", opts.Rekor != nil,
 		"rekor_version", rekorVersionForLog(opts.Rekor),
 		"tsa", opts.TSA != nil,
+		"trusted_root", opts.TrustedRoot != nil,
 		"payload_type", payloadType,
 	)
 
@@ -86,7 +96,6 @@ func (s *Signer) SignBundle(ctx context.Context, payload []byte, payloadType str
 	if err != nil {
 		return nil, wrapSignBundleError(err, opts.Rekor != nil)
 	}
-	// Round-trip parse to catch malformed bundles before we hand them out.
 	if _, verr := sigstorebundle.NewBundle(b); verr != nil {
 		return nil, fmt.Errorf("sigstore sign: bundle validation: %w", verr)
 	}
@@ -109,9 +118,7 @@ func rekorVersionForLog(r *RekorOptions) uint32 {
 	return r.Version
 }
 
-// wrapSignBundleError translates sigstore-go's cryptic TextConsumer
-// failure — raised when Rekor returns non-JSON (e.g. a policy denial) —
-// into an actionable message.
+// wrapSignBundleError translates cryptic sigstore-go errors into actionable messages.
 func wrapSignBundleError(err error, rekorEnabled bool) error {
 	if rekorEnabled && strings.Contains(err.Error(), "TextConsumer") {
 		return fmt.Errorf(

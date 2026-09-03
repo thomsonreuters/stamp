@@ -130,7 +130,7 @@ func (o *ContainerSignOp) Execute(ctx context.Context, imageRef string) error {
 }
 
 func (o *ContainerSignOp) buildSignOptions(ctx context.Context) (container.Options, error) {
-	sigOpts, err := sigstore.BuildOptionsFromConfig(ctx, o.config)
+	sigOpts, err := sigstore.BuildOptionsFromConfig(ctx, o.config, o.logger)
 	if err != nil {
 		return container.Options{}, err
 	}
