@@ -240,5 +240,3 @@ true
 
 Assuming this runs in the k8s admission check, this would accept this attestation and thus leave the gate open for deployment.
 Conversely, if the truth value is failed (i.e. the command failed), then the admission check refuses this attestation and blocks deployment.
-
-
