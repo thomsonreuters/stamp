@@ -67,6 +67,7 @@ test_*
 !go.sum
 !package.json
 !package-lock.json
+!**/testdata/**/*.json
 !tsconfig.json
 !.vscode/settings.json
 !.vscode/extensions.json
