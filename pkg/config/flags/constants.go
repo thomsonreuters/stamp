@@ -162,9 +162,6 @@ const (
 	// RekorUploadTarget specifies what to upload: "individual", "collection", "both".
 	RekorUploadTarget = "pipeline.rekor.upload_target"
 
-	// RekorTemporalPolicy specifies temporal validation policy: "strict" (fail), "warn", "ignore".
-	RekorTemporalPolicy = "pipeline.rekor.temporal_policy"
-
 	// RekorVersion specifies the Rekor API version to speak: 1 (default) or 2.
 	RekorVersion = "pipeline.rekor.version"
 )
@@ -335,9 +332,6 @@ const (
 	// VerifyExpectedIssuerRegex is a regexp the signing certificate OIDC
 	// issuer must match.
 	VerifyExpectedIssuerRegex = "commands.verify.expected_issuer_regex"
-
-	// VerifyAllowUnverifiedIdentity skips identity checks (unsafe).
-	VerifyAllowUnverifiedIdentity = "commands.verify.allow_unverified_identity"
 
 	// VerifyPublicKey is the PEM path of the public key used to verify a key-signed bundle.
 	VerifyPublicKey = "commands.verify.public_key"

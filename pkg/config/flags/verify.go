@@ -56,13 +56,6 @@ var VerifyFlags = plugincobra.FlagGroup{
 		Default:    "",
 		Help:       "Regexp the signing certificate OIDC issuer must match",
 	},
-	"allow-unverified-identity": {
-		Name:       "allow-unverified-identity",
-		ConfigPath: VerifyAllowUnverifiedIdentity,
-		Type:       plugincobra.BoolFlag,
-		Default:    false,
-		Help:       "Skip identity policy checks (unsafe — only for migration/testing)",
-	},
 	"public-key": {
 		Name:       "public-key",
 		ConfigPath: VerifyPublicKey,

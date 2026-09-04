@@ -133,7 +133,7 @@ func (d *Destination) GetConfigSchema() []destination.ConfigField {
 			Type:        "string",
 			Required:    true,
 			Default:     "./attestations/${attestor}/${id}.sigstore.json",
-			Description: "Output file path for attestations, can contain template variables: ${id}, ${attestor}, ${workflow}, ${date}, ${timestamp}, ${sha256}, ${predicate_type}, ${short_predicate_type}. In aggregate mode, cannot use per-attestation variables (${id}, ${sha256}, ${attestor}, ${predicate_type}). Attestations are persisted as sigstore Bundle v0.3 JSON.",
+			Description: "Output file path for attestations, can contain template variables: ${id}, ${attestor}, ${workflow}, ${date}, ${timestamp}, ${sha256}, ${predicate_type}, ${short_predicate_type}. In aggregate mode, cannot use per-attestation variables (${id}, ${sha256}, ${attestor}, ${predicate_type}). Attestations are persisted as .sigstore.json bundles.",
 			Examples: []string{
 				"./attestations/${attestor}/${id}.sigstore.json",
 				"./output/${workflow}-${date}.sigstore.json",

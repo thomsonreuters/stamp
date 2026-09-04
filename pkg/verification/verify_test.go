@@ -24,32 +24,32 @@ import (
 func TestIdentityConfigured(t *testing.T) {
 	tests := []struct {
 		name string
-		cfg  VerificationConfig
+		cfg  Config
 		want bool
 	}{
 		{
 			name: "empty config",
-			cfg:  VerificationConfig{},
+			cfg:  Config{},
 			want: false,
 		},
 		{
 			name: "SAN exact",
-			cfg:  VerificationConfig{ExpectedSAN: "user@example.com"},
+			cfg:  Config{ExpectedSAN: "user@example.com"},
 			want: true,
 		},
 		{
 			name: "SAN regex",
-			cfg:  VerificationConfig{ExpectedSANRegex: `.+@example\.com`},
+			cfg:  Config{ExpectedSANRegex: `.+@example\.com`},
 			want: true,
 		},
 		{
 			name: "issuer exact",
-			cfg:  VerificationConfig{ExpectedIssuer: "https://accounts.google.com"},
+			cfg:  Config{ExpectedIssuer: "https://accounts.google.com"},
 			want: true,
 		},
 		{
 			name: "issuer regex",
-			cfg:  VerificationConfig{ExpectedIssuerRegex: `^https://.*google\.com$`},
+			cfg:  Config{ExpectedIssuerRegex: `^https://.*google\.com$`},
 			want: true,
 		},
 	}
@@ -61,16 +61,13 @@ func TestIdentityConfigured(t *testing.T) {
 	}
 }
 
-// TestVerifier_NoTrustedMaterial asserts the verifier fails cleanly when it is
-// constructed without any trust root.
-func TestVerifier_NoTrustedMaterial(t *testing.T) {
-	// Fixtures pending regeneration — see testdata/README.md for the
-	// planned public-sigstore bundle fixtures. Once those exist this test
-	// can load a bundle and exercise the full Verify path.
-	v := &Verifier{}
-	result, err := v.Verify(t.Context(), nil)
-	require.NoError(t, err)
-	assert.NotNil(t, result)
-	assert.False(t, result.Valid)
-	assert.NotEmpty(t, result.Errors)
+// TestVerify_NoTrustedMaterial asserts Verify returns an error when it is
+// called without any trust root. The full bundle-verification path is
+// exercised end-to-end by docs/testing/c3-e2e/run-verify.sh; unit tests
+// here cover only the local guards.
+func TestVerify_NoTrustedMaterial(t *testing.T) {
+	result, err := Verify(t.Context(), nil, nil, Config{})
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "no trusted material")
 }

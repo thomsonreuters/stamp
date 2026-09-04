@@ -25,32 +25,54 @@ import (
 var verifyCmd = &cobra.Command{
 	Use:   "verify <attestation-file>",
 	Short: "Verify attestation signatures and transparency log inclusion",
-	Long: `Verify the cryptographic signature and optionally the transparency log inclusion
-of an attestation. Supports both file-based public key verification and certificate-based
-verification using Fulcio trust bundles.
+	Long: `Verify a .sigstore.json attestation bundle. Auto-detects certificate-signed
+(Fulcio) vs key-signed bundles.
 
-Verification modes:
-  • Signature verification: Validates cryptographic signatures using public keys or certificates
-  • Rekor inclusion: Verifies the attestation was logged in a transparency log
-  • Temporal validation: Ensures Rekor entries were created within certificate validity periods`,
-	Example: `  # Basic signature verification (auto-detects certificate or key-based)
-  stamp verify attestation.json
+Trust source:
+  If no trust flags are passed, stamp verifies against public sigstore:
+    • TUF repository: https://tuf-repo-cdn.sigstore.dev
+    • Initial trust root: sigstore-go's embedded public root
+    • Cached under ~/.sigstore/root after first fetch
+  To verify against a private sigstore deployment:
+    • --tuf-url + --tuf-root      Fetch trusted_root.json from a private TUF repo
+    • --trusted-root              Use a local trusted_root.json (bypass TUF)
 
-  # Verify with explicit public key (for key-based signatures)
-  stamp verify attestation.json --public-key ./public-key.pem
+Bundle-signer requirements:
+  • Fulcio-signed: pass --expected-san / --expected-issuer to enforce identity policy.
+  • Key-signed: pass --public-key to supply the pubkey the bundle's hint references.`,
+	Example: `  # Fulcio-signed bundle, public sigstore (no trust flags needed)
+  stamp verify attestation.sigstore.json \
+      --expected-san 'https://github.com/org/repo/.github/workflows/build.yaml@refs/heads/main' \
+      --expected-issuer https://token.actions.githubusercontent.com \
+      --rekor
 
-  # Verify Rekor transparency log inclusion
-  stamp verify attestation.json --rekor
+  # Fulcio-signed bundle, private TUF
+  stamp verify attestation.sigstore.json \
+      --expected-san 'X' --expected-issuer 'Y' \
+      --tuf-url https://tuf.example.com \
+      --tuf-root ./tuf-root.json \
+      --rekor
 
-  # Verify with custom Rekor server
-  stamp verify attestation.json --rekor --rekor-url https://rekor.example.com
+  # Fulcio-signed bundle, offline (local trusted_root.json)
+  stamp verify attestation.sigstore.json \
+      --expected-san 'X' --expected-issuer 'Y' \
+      --trusted-root ./trusted_root.json \
+      --rekor
 
-  # Strict temporal policy (fail if Rekor entry added after cert expired)
-  stamp verify attestation.json --rekor --rekor-temporal-policy strict
+  # Key-signed bundle
+  stamp verify attestation.sigstore.json --public-key ./signer.pub --rekor
 
-  # Save verification result to file
-  stamp verify attestation.json --rekor --output-verification result.json`,
+  # Save verification result to file for scripting
+  stamp verify attestation.sigstore.json --public-key ./signer.pub --output-verification result.json`,
 	Args: cobra.ExactArgs(1),
+	PreRunE: func(cmd *cobra.Command, _ []string) error {
+		if cmd.Flags().Changed("trusted-root") && cmd.Flags().Changed("tuf-url") {
+			return errors.NewUsageError(
+				"choose one trust source",
+				"Pass --trusted-root for a local trusted_root.json, or --tuf-url for a TUF repository, not both")
+		}
+		return nil
+	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		op := operations.NewVerifyOp(rootConfig, rootLogger, rootOutput)
 
@@ -67,10 +89,9 @@ Verification modes:
 }
 
 func init() {
-	_ = plugincobra.ApplyFlagGroup(verifyCmd, flags.FulcioServerFlags)
-	_ = plugincobra.ApplyFlagGroup(verifyCmd, flags.RekorEnableFlags)
-	_ = plugincobra.ApplyFlagGroup(verifyCmd, flags.RekorServerFlags)
+	_ = plugincobra.ApplyFlagGroup(verifyCmd, flags.RekorVerifyEnableFlags)
 	_ = plugincobra.ApplyFlagGroup(verifyCmd, flags.VerifyFlags)
+	_ = plugincobra.ApplyFlagGroup(verifyCmd, flags.VerifyTrustFlags)
 
 	rootCmd.AddCommand(verifyCmd)
 }
