@@ -16,6 +16,7 @@ package trust
 
 import (
 	"context"
+	"fmt"
 	"os"
 
 	"github.com/sigstore/sigstore-go/pkg/root"
@@ -75,6 +76,20 @@ func OptionsFromConfig(cfg config.ConfigurationIface) Options {
 		SigningConfigPath:   cfg.GetString(flags.SigningConfigPath),
 		Insecure:            cfg.GetBool(flags.Insecure),
 	}
+}
+
+// ResolveTrustedRoot is a convenience wrapper that reads Options from cfg,
+// constructs a Resolver, and returns the resolved TrustedRoot.
+func ResolveTrustedRoot(ctx context.Context, cfg config.ConfigurationIface, log logger.Logger) (*root.TrustedRoot, error) {
+	resolver, err := NewResolver(OptionsFromConfig(cfg), log)
+	if err != nil {
+		return nil, fmt.Errorf("trust: init resolver: %w", err)
+	}
+	tr, err := resolver.Resolve(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("trust: resolve trusted root: %w", err)
+	}
+	return tr, nil
 }
 
 // NewResolver dispatches by flag presence: file > explicit > TUF.

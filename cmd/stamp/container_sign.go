@@ -24,8 +24,8 @@ import (
 
 var containerSignCmd = &cobra.Command{
 	Use:   "sign <image-reference>",
-	Short: "Sign a container image and emit a sigstore Bundle v0.3",
-	Long: `Sign a container image and emit a sigstore Bundle v0.3.
+	Short: "Sign a container image and emit a signed .sigstore.json bundle",
+	Long: `Sign a container image and emit a signed .sigstore.json bundle.
 
 The image reference is resolved to a manifest digest, wrapped in a
 cosign-shaped in-toto Statement, and signed via sigstore-go's sign.Bundle.

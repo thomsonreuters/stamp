@@ -125,7 +125,7 @@ func (o *RunOp) executeWorkflowsSequential(ctx context.Context, workflowNames []
 	failFast := !o.config.GetBool(flags.RunContinueOnError)
 
 	aggregated := &pipeline.Result{
-		Attestations: make([]pipeline.EnvelopeResult, 0, len(workflowNames)*4),
+		Attestations: make([]pipeline.SignedResult, 0, len(workflowNames)*4),
 		Metrics:      pipeline.NewMetrics(),
 	}
 
@@ -514,18 +514,6 @@ func (o *RunOp) validateCommonSettings() error {
 			return err
 		}
 	}
-
-	if o.config.GetBool(flags.TransparencyEnable) {
-		backend := o.config.GetString(flags.Signer)
-		if backend == "key" && o.config.GetString(flags.PublicKey) == "" {
-			return pkgerrors.NewUsageError(
-				"--public-key required when uploading to Rekor with file-based signing",
-				"Specify public key: --public-key <path>",
-				"Or use Fulcio signing (--signer fulcio) which doesn't require a separate public key",
-			)
-		}
-	}
-
 	return nil
 }
 

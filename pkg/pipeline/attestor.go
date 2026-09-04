@@ -16,6 +16,8 @@ package pipeline
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"maps"
 	"time"
@@ -56,27 +58,16 @@ func (p *AttestorPipeline) Execute(ctx context.Context) error {
 	logger.InfoContext(ctx, "starting attestor pipeline")
 	p.output.Progress("Generating attestation for %s...", p.name)
 
-	defer func() {
-		if p.signer != nil {
-			if err := p.signer.PostSign(ctx); err != nil {
-				logger.WarnContext(ctx, "signer cleanup failed", "error", err)
-			}
-		}
-	}()
-
-	envelope, err := p.ExecuteAttestor(ctx)
-	// AttestorName is p.name which is:
-	// - For single attestor execution: the attestorID (e.g., "git", "command")
-	// - For workflow execution: the configured instance name from workflow config
-	envelopeResult := EnvelopeResult{
-		Envelope:      envelope,
+	statementBytes, err := p.ExecuteAttestor(ctx)
+	signedResult := SignedResult{
+		StatementJSON: statementBytes,
 		AttestorName:  p.name,
 		PredicateType: p.getPredicateType(),
 	}
 	if err != nil {
 		p.RecordAttestorExecution(false)
-		envelopeResult.Error = err
-		p.result.Attestations = append(p.result.Attestations, envelopeResult)
+		signedResult.Error = err
+		p.result.Attestations = append(p.result.Attestations, signedResult)
 		return pkgerrors.WrapPipeline(err, "attestation", p.name).
 			Suggest(
 				fmt.Sprintf("Run 'stamp list %s --show-config' to verify configuration", p.name),
@@ -86,20 +77,22 @@ func (p *AttestorPipeline) Execute(ctx context.Context) error {
 	}
 	p.RecordAttestorExecution(true)
 
-	if err := p.SignEnvelope(ctx, envelope); err != nil {
-		envelopeResult.Error = err
-		p.result.Attestations = append(p.result.Attestations, envelopeResult)
+	bundleJSON, err := p.signAndBundle(ctx, statementBytes)
+	if err != nil {
+		signedResult.Error = err
+		p.result.Attestations = append(p.result.Attestations, signedResult)
 		return pkgerrors.WrapPipeline(err, "signing", p.name).
 			Suggest(
 				"Check signer configuration (file/fulcio)",
 				"Verify signing key exists and is accessible",
-				"Check network connectivity for Fulcio signer",
+				"Check network connectivity for Fulcio and Rekor",
 			)
 	}
+	signedResult.BundleJSON = bundleJSON
 
-	if err := p.handleStdoutOutput(ctx, envelope); err != nil {
-		envelopeResult.Error = err
-		p.result.Attestations = append(p.result.Attestations, envelopeResult)
+	if err := p.handleStdoutOutput(ctx, signedResult); err != nil {
+		signedResult.Error = err
+		p.result.Attestations = append(p.result.Attestations, signedResult)
 		return pkgerrors.WrapPipeline(err, "output", p.name).
 			Suggest(
 				"Check --output-format flag value",
@@ -107,9 +100,9 @@ func (p *AttestorPipeline) Execute(ctx context.Context) error {
 			)
 	}
 
-	if err := p.handlePersistOutput(ctx, envelope); err != nil {
-		envelopeResult.Error = err
-		p.result.Attestations = append(p.result.Attestations, envelopeResult)
+	if err := p.handlePersistOutput(ctx, signedResult); err != nil {
+		signedResult.Error = err
+		p.result.Attestations = append(p.result.Attestations, signedResult)
 		return pkgerrors.WrapPipeline(err, "persist", p.name).
 			Suggest(
 				"Check --template path is writable",
@@ -117,18 +110,7 @@ func (p *AttestorPipeline) Execute(ctx context.Context) error {
 			)
 	}
 
-	if err := p.uploadToRekor(ctx, envelope); err != nil {
-		envelopeResult.Error = err
-		p.result.Attestations = append(p.result.Attestations, envelopeResult)
-		return pkgerrors.WrapPipeline(err, "transparency", p.name).
-			Suggest(
-				"Check Rekor URL configuration",
-				"Verify network connectivity to transparency log",
-				"Check if attestation is signed (required for Rekor)",
-			)
-	}
-
-	p.result.Attestations = append(p.result.Attestations, envelopeResult)
+	p.result.Attestations = append(p.result.Attestations, signedResult)
 
 	p.result.Metrics = p.FinalizeMetrics()
 
@@ -140,8 +122,8 @@ func (p *AttestorPipeline) Execute(ctx context.Context) error {
 	return nil
 }
 
-// ExecuteAttestor runs the attestor lifecycle and generates an envelope.
-func (p *AttestorPipeline) ExecuteAttestor(ctx context.Context) (*intoto.Envelope, error) {
+// ExecuteAttestor runs the attestor lifecycle and returns the in-toto Statement bytes.
+func (p *AttestorPipeline) ExecuteAttestor(ctx context.Context) ([]byte, error) {
 	attestor, err := core.GetAttestorByID(p.attestorID, p.logger)
 	if err != nil {
 		p.logger.ErrorContext(ctx, "attestor not found", "error", err)
@@ -180,12 +162,22 @@ func (p *AttestorPipeline) ExecuteAttestor(ctx context.Context) (*intoto.Envelop
 	}
 	p.logger.InfoContext(ctx, "predicate generated successfully")
 
-	envelope, err := p.createEnvelope(ctx, attestor, predicate, attestorConfig)
+	subjects := attestor.Subjects(attestorConfig)
+	p.logger.InfoContext(ctx, "creating in-toto statement", "subject_count", len(subjects))
+
+	statement, err := intoto.NewStatement(attestor.PredicateURI(), predicate, subjects)
 	if err != nil {
-		return nil, err
+		return nil, pkgerrors.WrapWithContext(err, "intoto", "create_statement",
+			fmt.Sprintf("failed to create statement for attestor: %s (predicate: %s)", p.name, attestor.PredicateURI()))
 	}
 
-	return envelope, nil
+	payload, err := statement.ToJSON()
+	if err != nil {
+		return nil, pkgerrors.WrapWithContext(err, "intoto", "serialize_statement",
+			fmt.Sprintf("failed to serialize statement for attestor: %s", p.name))
+	}
+
+	return payload, nil
 }
 
 // getAttestorConfig retrieves and merges attestor configuration from config file and command-line flags.
@@ -233,54 +225,47 @@ func (p *AttestorPipeline) runAttestorLifecycle(ctx context.Context, attestor co
 	return nil
 }
 
-// createEnvelope creates the in-toto statement and DSSE envelope.
-func (p *AttestorPipeline) createEnvelope(ctx context.Context, attestor core.Attestor, predicate any, config core.Config) (*intoto.Envelope, error) {
-	subjects := attestor.Subjects(config)
-	p.logger.InfoContext(ctx, "creating in-toto statement", "subject_count", len(subjects))
-
-	statement, err := intoto.NewStatement(attestor.PredicateURI(), predicate, subjects)
-	if err != nil {
-		return nil, pkgerrors.WrapWithContext(err, "intoto", "create_statement",
-			fmt.Sprintf("failed to create statement for attestor: %s (predicate: %s)", p.name, attestor.PredicateURI()))
+// signAndBundle signs the statement payload into a sigstore Bundle v0.3.
+// Returns (nil, nil) when signing is not configured; callers must handle
+// nil bundle bytes and fall back to the raw statement.
+func (p *AttestorPipeline) signAndBundle(ctx context.Context, payload []byte) ([]byte, error) {
+	if p.HasWorkflowContext() {
+		// Workflow pipeline owns signing so key/token material is reused
+		// across per-attestor bundles + the collection.
+		p.logger.DebugContext(ctx, "skipping attestor-level signing — handled by workflow pipeline")
+		return nil, nil
 	}
 
-	p.logger.InfoContext(ctx, "creating DSSE envelope")
-	envelope, err := intoto.NewEnvelope(statement)
+	opts, err := p.GetSigstoreOptions(ctx)
 	if err != nil {
-		return nil, pkgerrors.WrapWithContext(err, "intoto", "create_envelope",
-			fmt.Sprintf("failed to create envelope for attestor: %s", p.name))
+		return nil, err
 	}
-
-	return envelope, nil
-}
-
-// SignEnvelope signs the attestation envelope if signing is configured.
-func (p *AttestorPipeline) SignEnvelope(ctx context.Context, envelope *intoto.Envelope) error {
-	signer, err := p.GetSigner(ctx)
-	if err != nil {
-		return err
-	}
-	if signer == nil {
-		p.logger.DebugContext(ctx, "no signer configured, attestation will be unsigned")
-		return nil
+	if opts == nil {
+		p.logger.DebugContext(ctx, "no signer configured, attestation will not be bundled")
+		return nil, nil
 	}
 
 	start := time.Now()
-	p.logger.InfoContext(ctx, "signing attestation envelope")
+	p.logger.InfoContext(ctx, "signing attestation via sigstore Bundle")
 
-	if err := envelope.Sign(ctx, signer); err != nil {
-		return pkgerrors.WrapWithContext(err, "signing", "sign_envelope",
-			fmt.Sprintf("failed to sign envelope for attestor: %s", p.name))
+	res, err := p.GetSigstoreSigner().SignBundle(ctx, payload, intoto.PayloadType, *opts)
+	if err != nil {
+		return nil, pkgerrors.WrapWithContext(err, "signing", "sigstore_bundle",
+			fmt.Sprintf("failed to sign bundle for attestor: %s", p.name))
 	}
 
 	duration := time.Since(start)
 	p.RecordSigningDuration(duration)
-
-	return nil
+	if opts.Rekor != nil {
+		p.RecordRekorUploadDuration(duration)
+	}
+	return res.BundleJSON, nil
 }
 
-// handleStdoutOutput writes the attestation envelope to stdout if output is enabled.
-func (p *AttestorPipeline) handleStdoutOutput(ctx context.Context, envelope *intoto.Envelope) error {
+// handleStdoutOutput writes the attestation to stdout. When signing is
+// configured it emits the sigstore Bundle v0.3; otherwise it emits the raw
+// in-toto Statement.
+func (p *AttestorPipeline) handleStdoutOutput(ctx context.Context, result SignedResult) error {
 	if p.HasWorkflowContext() {
 		p.logger.DebugContext(ctx, "skipping stdout output - handled by workflow pipeline")
 		return nil
@@ -291,8 +276,16 @@ func (p *AttestorPipeline) handleStdoutOutput(ctx context.Context, envelope *int
 		return nil
 	}
 
+	payload := result.BundleJSON
+	if len(payload) == 0 {
+		payload = result.StatementJSON
+	}
+	if len(payload) == 0 {
+		return nil
+	}
+
 	p.logger.DebugContext(ctx, "writing attestation to stdout")
-	if err := p.output.Data(p.logger, "attestation generated", envelope); err != nil {
+	if err := p.output.Data(p.logger, "attestation generated", rawJSON(payload)); err != nil {
 		if p.GetFailurePolicy() == types.FailurePolicyFailFast {
 			return pkgerrors.WrapWithContext(err, "output", "stdout_write",
 				fmt.Sprintf("failed to write attestation to stdout for attestor: %s", p.name))
@@ -303,11 +296,15 @@ func (p *AttestorPipeline) handleStdoutOutput(ctx context.Context, envelope *int
 	return nil
 }
 
-// handlePersistOutput writes the attestation envelope to a file if --persist is enabled.
-// Uses the destination system for file writing with template variable resolution.
-func (p *AttestorPipeline) handlePersistOutput(ctx context.Context, envelope *intoto.Envelope) error {
+// handlePersistOutput writes the attestation bundle to a file if --persist is enabled.
+func (p *AttestorPipeline) handlePersistOutput(ctx context.Context, result SignedResult) error {
 	if p.HasWorkflowContext() {
 		p.logger.DebugContext(ctx, "skipping persist output - handled by workflow pipeline")
+		return nil
+	}
+
+	if len(result.BundleJSON) == 0 {
+		p.logger.DebugContext(ctx, "no bundle available to persist (unsigned attestation)")
 		return nil
 	}
 
@@ -317,7 +314,6 @@ func (p *AttestorPipeline) handlePersistOutput(ctx context.Context, envelope *in
 			fmt.Sprintf("failed to get destination manager for attestor: %s", p.name))
 	}
 
-	// No destinations configured (persist not enabled)
 	if manager == nil {
 		return nil
 	}
@@ -328,20 +324,20 @@ func (p *AttestorPipeline) handlePersistOutput(ctx context.Context, envelope *in
 		predicateType = attestor.PredicateURI()
 	}
 
-	sha256Hash, _ := envelope.SHA256()
+	sha := sha256.Sum256(result.BundleJSON)
 
 	attestation := &destination.Attestation{
 		ID:            uuid.New().String(),
 		AttestorID:    p.name,
 		PredicateType: predicateType,
-		Envelope:      envelope,
+		Bundle:        result.BundleJSON,
 		Timestamp:     time.Now(),
-		SHA256:        sha256Hash,
+		SHA256:        hex.EncodeToString(sha[:]),
 		WorkflowName:  p.workflow,
 	}
 
 	start := time.Now()
-	result, err := manager.Write(ctx, attestation, destination.WriteOptions{
+	writeResult, err := manager.Write(ctx, attestation, destination.WriteOptions{
 		FailurePolicy: destination.FailurePolicyFailFast,
 	})
 	if err != nil {
@@ -352,58 +348,13 @@ func (p *AttestorPipeline) handlePersistOutput(ctx context.Context, envelope *in
 	duration := time.Since(start)
 	p.RecordDestinationWriteDuration(duration)
 
-	for name, writeResult := range result.Successful {
+	for name, wr := range writeResult.Successful {
 		p.logger.InfoContext(ctx, "attestation persisted",
 			"destination", name,
-			"location", writeResult.Location,
-			"size", writeResult.Size)
-		p.output.Success("Attestation saved to: %s", writeResult.Location)
+			"location", wr.Location,
+			"size", wr.Size)
+		p.output.Success("Attestation saved to: %s", wr.Location)
 	}
-
-	return nil
-}
-
-// uploadToRekor uploads the attestation envelope to the Rekor transparency log.
-func (p *AttestorPipeline) uploadToRekor(ctx context.Context, envelope *intoto.Envelope) error {
-	if p.HasWorkflowContext() {
-		p.logger.DebugContext(ctx, "skipping rekor upload - handled by workflow pipeline")
-		return nil
-	}
-
-	client, err := p.GetRekorClient()
-	if err != nil {
-		return err
-	}
-	if client == nil {
-		p.logger.DebugContext(ctx, "rekor not configured")
-		return nil
-	}
-
-	start := time.Now()
-	p.logger.InfoContext(ctx, "uploading attestation to transparency log")
-	publicKeyPath := p.config.GetString(flags.PublicKey)
-
-	entry, err := client.Upload(ctx, envelope, publicKeyPath, nil)
-	if err != nil {
-		p.logger.ErrorContext(ctx, "rekor upload failed", "error", err)
-		if p.GetFailurePolicy() == types.FailurePolicyFailFast {
-			rekorURL := p.config.GetString(flags.RekorURL)
-			return pkgerrors.WrapWithContext(err, "transparency", "upload_rekor",
-				fmt.Sprintf("failed to upload to rekor for attestor: %s (url: %s)", p.name, rekorURL))
-		}
-		p.logger.WarnContext(ctx, "continuing despite rekor upload failure")
-		return nil
-	}
-
-	duration := time.Since(start)
-	p.RecordRekorUploadDuration(duration)
-
-	p.logger.InfoContext(ctx, "attestation uploaded to transparency log",
-		"entry_uuid", entry.UUID,
-		"log_index", entry.LogIndex,
-		"duration_ms", duration.Milliseconds(),
-	)
-	p.output.Success("Attestation uploaded to transparency log (UUID: %s)", entry.UUID)
 
 	return nil
 }
@@ -430,13 +381,24 @@ func (p *AttestorPipeline) HasWorkflowContext() bool {
 	return p.workflow != ""
 }
 
+// rawJSON adapts pre-serialized JSON bytes to the OutputIface.Data JSON encoder
+// so we don't double-encode a byte slice as a base64 string.
+type rawJSON []byte
+
+func (r rawJSON) MarshalJSON() ([]byte, error) {
+	if len(r) == 0 {
+		return []byte("null"), nil
+	}
+	return []byte(r), nil
+}
+
 // NewAttestorPipeline creates a new pipeline for direct attestor execution.
 func NewAttestorPipeline(attestorID string, cfg config.ConfigurationIface, logger logger.Logger, output output.OutputIface) *AttestorPipeline {
 	return &AttestorPipeline{
 		BasePipeline: NewBasePipeline(cfg, logger, output),
 		attestorID:   attestorID,
 		name:         attestorID,
-		result:       &Result{Attestations: make([]EnvelopeResult, 0)},
+		result:       &Result{Attestations: make([]SignedResult, 0)},
 	}
 }
 
@@ -451,7 +413,7 @@ func NewNamedAttestorPipeline(
 		BasePipeline: NewBasePipeline(cfg, logger, output),
 		attestorID:   attestorID,
 		name:         instanceName,
-		result:       &Result{Attestations: make([]EnvelopeResult, 0)},
+		result:       &Result{Attestations: make([]SignedResult, 0)},
 	}
 }
 

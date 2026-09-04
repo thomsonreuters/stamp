@@ -26,7 +26,7 @@ var ContainerSignFlags = plugincobra.FlagGroup{
 		ConfigPath: ContainerSignOutput,
 		Type:       plugincobra.StringFlag,
 		Default:    "",
-		Help:       "Path to write the sigstore Bundle v0.3 JSON (default: stdout)",
+		Help:       "Path to write the signed .sigstore.json bundle (default: stdout)",
 	},
 	"overwrite": {
 		Name:       "overwrite",

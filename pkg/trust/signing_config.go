@@ -19,12 +19,27 @@ import (
 	"fmt"
 
 	"github.com/sigstore/sigstore-go/pkg/root"
+	"github.com/thomsonreuters/stamp/pkg/config"
 	"github.com/thomsonreuters/stamp/pkg/logger"
 )
 
 // SigningConfigResolver returns nil to signal "no SigningConfig configured".
 type SigningConfigResolver interface {
 	Resolve(ctx context.Context) (*root.SigningConfig, error)
+}
+
+// ResolveSigningConfig is a convenience wrapper that reads Options from cfg,
+// constructs a SigningConfigResolver, and returns the resolved SigningConfig.
+func ResolveSigningConfig(ctx context.Context, cfg config.ConfigurationIface, log logger.Logger) (*root.SigningConfig, error) {
+	resolver, err := NewSigningConfigResolver(OptionsFromConfig(cfg), log)
+	if err != nil {
+		return nil, fmt.Errorf("trust: init signing config resolver: %w", err)
+	}
+	sc, err := resolver.Resolve(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("trust: resolve signing config: %w", err)
+	}
+	return sc, nil
 }
 
 func NewSigningConfigResolver(opts Options, log logger.Logger) (SigningConfigResolver, error) {

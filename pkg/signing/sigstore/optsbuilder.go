@@ -26,7 +26,6 @@ import (
 	"github.com/thomsonreuters/stamp/pkg/crypto/keys"
 	pkgerrors "github.com/thomsonreuters/stamp/pkg/errors"
 	"github.com/thomsonreuters/stamp/pkg/logger"
-	"github.com/thomsonreuters/stamp/pkg/signing"
 	"github.com/thomsonreuters/stamp/pkg/signing/fulcio"
 	"github.com/thomsonreuters/stamp/pkg/trust"
 	"github.com/thomsonreuters/stamp/pkg/types"
@@ -39,9 +38,16 @@ func BuildOptionsFromConfig(ctx context.Context, cfg config.ConfigurationIface, 
 
 	var sc *root.SigningConfig
 	if usesSigstoreServices(cfg) {
-		tr, resolvedSC, err := resolveTrustMaterial(ctx, cfg, log)
+		tr, err := trust.ResolveTrustedRoot(ctx, cfg, log)
 		if err != nil {
-			return opts, err
+			return opts, pkgerrors.WrapWithContext(err, "sigstore", "build_opts", "failed to resolve trusted root")
+		}
+		resolvedSC, err := trust.ResolveSigningConfig(ctx, cfg, log)
+		if err != nil {
+			return opts, pkgerrors.WrapWithContext(err, "sigstore", "build_opts", "failed to resolve signing config")
+		}
+		if resolvedSC != nil && hasExplicitServiceURL(cfg) {
+			return opts, pkgerrors.WrapWithContext(trust.ErrSigningConfigURLConflict, "sigstore", "build_opts", "signing config conflict")
 		}
 		opts.TrustedRoot = tr
 		opts.SigningConfig = resolvedSC
@@ -77,35 +83,6 @@ func BuildOptionsFromConfig(ctx context.Context, cfg config.ConfigurationIface, 
 		opts.TSA = &TSAOptions{URL: urls.tsa}
 	}
 	return opts, nil
-}
-
-// resolveTrustMaterial resolves the TrustedRoot and (optionally) the SigningConfig
-// from the configured source (TUF, file, or explicit inputs), enforcing the
-// URL-conflict guard when a SigningConfig is active.
-func resolveTrustMaterial(ctx context.Context, cfg config.ConfigurationIface, log logger.Logger) (*root.TrustedRoot, *root.SigningConfig, error) {
-	trustOpts := trust.OptionsFromConfig(cfg)
-
-	resolver, err := trust.NewResolver(trustOpts, log)
-	if err != nil {
-		return nil, nil, pkgerrors.WrapWithContext(err, "sigstore", "build_opts", "trust config error")
-	}
-	tr, err := resolver.Resolve(ctx)
-	if err != nil {
-		return nil, nil, pkgerrors.WrapWithContext(err, "sigstore", "build_opts", "failed to resolve trusted root")
-	}
-
-	scResolver, err := trust.NewSigningConfigResolver(trustOpts, log)
-	if err != nil {
-		return nil, nil, pkgerrors.WrapWithContext(err, "sigstore", "build_opts", "signing config error")
-	}
-	sc, err := scResolver.Resolve(ctx)
-	if err != nil {
-		return nil, nil, pkgerrors.WrapWithContext(err, "sigstore", "build_opts", "failed to resolve signing config")
-	}
-	if sc != nil && hasExplicitServiceURL(cfg) {
-		return nil, nil, pkgerrors.WrapWithContext(trust.ErrSigningConfigURLConflict, "sigstore", "build_opts", "signing config conflict")
-	}
-	return tr, sc, nil
 }
 
 func usesSigstoreServices(cfg config.ConfigurationIface) bool {
@@ -221,7 +198,7 @@ func BuildKeyOptions(cfg config.ConfigurationIface) (*KeyOptions, error) {
 
 // BuildFulcioOptions resolves the OIDC token and returns FulcioOptions.
 func BuildFulcioOptions(ctx context.Context, cfg config.ConfigurationIface, fulcioURL string) (*FulcioOptions, error) {
-	fulcioCfg := signing.FulcioSignerConfig{
+	fulcioCfg := fulcio.SignerConfig{
 		FulcioURL:        fulcioURL,
 		Token:            cfg.GetString(flags.OIDCToken),
 		TokenPath:        cfg.GetString(flags.OIDCTokenFile),

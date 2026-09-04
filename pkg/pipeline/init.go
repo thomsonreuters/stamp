@@ -15,7 +15,7 @@
 package pipeline
 
 import (
-	// Import built-in attestors & signing providers to register them.
+	// Import built-in attestors to register them.
 	_ "github.com/thomsonreuters/stamp/pkg/attestors/command"
 	_ "github.com/thomsonreuters/stamp/pkg/attestors/ec2"
 	_ "github.com/thomsonreuters/stamp/pkg/attestors/file"
@@ -24,6 +24,4 @@ import (
 	_ "github.com/thomsonreuters/stamp/pkg/attestors/go-builder"
 	_ "github.com/thomsonreuters/stamp/pkg/attestors/jwt"
 	_ "github.com/thomsonreuters/stamp/pkg/attestors/sbom"
-	_ "github.com/thomsonreuters/stamp/pkg/signing/fulcio"
-	_ "github.com/thomsonreuters/stamp/pkg/signing/key"
 )

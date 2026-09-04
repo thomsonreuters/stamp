@@ -48,6 +48,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -131,12 +132,12 @@ func (d *Destination) GetConfigSchema() []destination.ConfigField {
 			Name:        "path",
 			Type:        "string",
 			Required:    true,
-			Default:     "./attestations/${attestor}/${id}.json",
-			Description: "Output file path for attestations, can contain template variables: ${id}, ${attestor}, ${workflow}, ${date}, ${timestamp}, ${sha256}, ${predicate_type}, ${short_predicate_type}. In aggregate mode, cannot use per-attestation variables (${id}, ${sha256}, ${attestor}, ${predicate_type}).",
+			Default:     "./attestations/${attestor}/${id}.sigstore.json",
+			Description: "Output file path for attestations, can contain template variables: ${id}, ${attestor}, ${workflow}, ${date}, ${timestamp}, ${sha256}, ${predicate_type}, ${short_predicate_type}. In aggregate mode, cannot use per-attestation variables (${id}, ${sha256}, ${attestor}, ${predicate_type}). Attestations are persisted as .sigstore.json bundles.",
 			Examples: []string{
-				"./attestations/${attestor}/${id}.json",
-				"./output/${workflow}-${date}.json",
-				"./collections/${workflow}/${date}-collection-${id}.json",
+				"./attestations/${attestor}/${id}.sigstore.json",
+				"./output/${workflow}-${date}.sigstore.json",
+				"./collections/${workflow}/${date}-collection-${id}.sigstore.json",
 			},
 		},
 		{
@@ -239,18 +240,10 @@ func (d *Destination) writeInternal(
 		}
 	}
 
-	var data []byte
-	var err error
-
-	if config.Pretty {
-		data, err = json.MarshalIndent(attestation.Envelope, "", "  ")
-	} else {
-		data, err = json.Marshal(attestation.Envelope)
-	}
-
-	if err != nil {
+	data := attestation.Bundle
+	if len(data) == 0 {
 		return nil, destination.NewDestinationError("file", "serialize_attestation",
-			fmt.Errorf("failed to marshal attestation envelope: %w", err), false)
+			errors.New("attestation bundle is empty"), false)
 	}
 
 	if ctxErr := ctx.Err(); ctxErr != nil {
@@ -320,9 +313,19 @@ func (d *Destination) writeBatchAggregate(
 
 	outputPath := config.ResolvePath(attestations[0], opts.WorkflowName)
 
-	envelopes := make([]any, len(attestations))
-	for i, att := range attestations {
-		envelopes[i] = att.Envelope
+	// Decode each bundle so the serializer emits a nested array rather than
+	// an array of raw JSON byte strings.
+	envelopes := make([]any, 0, len(attestations))
+	for _, att := range attestations {
+		if len(att.Bundle) == 0 {
+			continue
+		}
+		var decoded any
+		if err := json.Unmarshal(att.Bundle, &decoded); err != nil {
+			return nil, destination.NewDestinationError("file", "serialize_attestation",
+				fmt.Errorf("failed to decode bundle for aggregate: %w", err), false)
+		}
+		envelopes = append(envelopes, decoded)
 	}
 
 	var data []byte

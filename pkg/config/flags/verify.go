@@ -15,23 +15,11 @@
 package flags
 
 import (
-	"fmt"
-	"strings"
-
-	"github.com/thomsonreuters/stamp/pkg/types"
 	plugincobra "github.com/thomsonreuters/stamp/plugins/cobra"
 )
 
 // VerifyFlags contains verify command options for attestation signature verification.
 var VerifyFlags = plugincobra.FlagGroup{
-	"public-key": {
-		Name:       "public-key",
-		ShortName:  "k",
-		ConfigPath: VerifyPublicKey,
-		Type:       plugincobra.StringFlag,
-		Default:    "",
-		Help:       "Path to public key file for signature verification (alternative to Fulcio certificate verification)",
-	},
 	"output-verification": {
 		Name:       "output-verification",
 		ShortName:  "o",
@@ -40,14 +28,39 @@ var VerifyFlags = plugincobra.FlagGroup{
 		Default:    "",
 		Help:       "Save detailed verification result to JSON file",
 	},
-	"rekor-temporal-policy": {
-		Name:       "rekor-temporal-policy",
-		ConfigPath: RekorTemporalPolicy,
+	"expected-san": {
+		Name:       "expected-san",
+		ConfigPath: VerifyExpectedSAN,
 		Type:       plugincobra.StringFlag,
 		Default:    "",
-		Help:       fmt.Sprintf("Temporal validation policy (%s; default: warn)", strings.Join(types.ValidTemporalPolicies, ", ")),
-		Constraints: &plugincobra.FlagConstraints{
-			ValidValues: types.ValidTemporalPolicies,
-		},
+		Help:       "Exact SubjectAlternativeName the signing certificate must match",
+	},
+	"expected-san-regex": {
+		Name:       "expected-san-regex",
+		ConfigPath: VerifyExpectedSANRegex,
+		Type:       plugincobra.StringFlag,
+		Default:    "",
+		Help:       "Regexp the signing certificate SAN must match",
+	},
+	"expected-issuer": {
+		Name:       "expected-issuer",
+		ConfigPath: VerifyExpectedIssuer,
+		Type:       plugincobra.StringFlag,
+		Default:    "",
+		Help:       "Exact OIDC issuer the signing certificate must carry",
+	},
+	"expected-issuer-regex": {
+		Name:       "expected-issuer-regex",
+		ConfigPath: VerifyExpectedIssuerRegex,
+		Type:       plugincobra.StringFlag,
+		Default:    "",
+		Help:       "Regexp the signing certificate OIDC issuer must match",
+	},
+	"public-key": {
+		Name:       "public-key",
+		ConfigPath: VerifyPublicKey,
+		Type:       plugincobra.StringFlag,
+		Default:    "",
+		Help:       "Public key PEM path for verifying key-signed bundles",
 	},
 }
