@@ -68,8 +68,7 @@ func DetectEnvironment(ctx context.Context, log logger.Logger, opts DetectOption
 	if env, err := gh.Detect(ctx); err == nil {
 		return env, nil
 	} else {
-		var fatal *DetectionFatalError
-		if errors.As(err, &fatal) {
+		if _, ok := errors.AsType[*DetectionFatalError](err); ok {
 			return nil, err
 		}
 		log.DebugContext(ctx, "GitHub Actions environment not detected", "error", err.Error())
@@ -79,8 +78,7 @@ func DetectEnvironment(ctx context.Context, log logger.Logger, opts DetectOption
 	if env, err := ec2.Detect(ctx); err == nil {
 		return env, nil
 	} else {
-		var fatal *DetectionFatalError
-		if errors.As(err, &fatal) {
+		if _, ok := errors.AsType[*DetectionFatalError](err); ok {
 			return nil, err
 		}
 		log.DebugContext(ctx, "EC2 environment not detected", "error", err.Error())
