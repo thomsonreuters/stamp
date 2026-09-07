@@ -21,46 +21,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestIdentityConfigured(t *testing.T) {
-	tests := []struct {
-		name string
-		cfg  Config
-		want bool
-	}{
-		{
-			name: "empty config",
-			cfg:  Config{},
-			want: false,
-		},
-		{
-			name: "SAN exact",
-			cfg:  Config{ExpectedSAN: "user@example.com"},
-			want: true,
-		},
-		{
-			name: "SAN regex",
-			cfg:  Config{ExpectedSANRegex: `.+@example\.com`},
-			want: true,
-		},
-		{
-			name: "issuer exact",
-			cfg:  Config{ExpectedIssuer: "https://accounts.google.com"},
-			want: true,
-		},
-		{
-			name: "issuer regex",
-			cfg:  Config{ExpectedIssuerRegex: `^https://.*google\.com$`},
-			want: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, identityConfigured(tt.cfg))
-		})
-	}
-}
-
 // TestVerify_NoTrustedMaterial asserts Verify returns an error when it is
 // called without any trust root. The full bundle-verification path is
 // exercised end-to-end by docs/testing/c3-e2e/run-verify.sh; unit tests

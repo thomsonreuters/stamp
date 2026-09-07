@@ -93,10 +93,9 @@ func (o *VerifyOp) Validate(attestationPath string) error {
 
 	if validator.HasErrors() {
 		_ = validator.Suggest(
-			"Specify path to a .sigstore.json attestation file as first argument",
+			"Specify path to a Sigstore attestation bundle (.sigstore.json) as first argument",
 			"Example: stamp verify attestation.sigstore.json --rekor",
 			"Use --rekor to require transparency-log inclusion",
-			"Use --expected-san / --expected-issuer to enforce identity policy",
 		)
 		return validator
 	}
@@ -119,10 +118,10 @@ func (o *VerifyOp) Execute(ctx context.Context, attestationPath string) error {
 	b, err := sgbundle.LoadJSONFromPath(attestationPath)
 	if err != nil {
 		parseErr := pkgerrors.WrapWithContext(err, "parse", "attestation",
-			"failed to parse attestation file")
+			"failed to parse Sigstore attestation bundle")
 		_ = parseErr.Suggest(
-			"stamp verify only accepts .sigstore.json files",
-			"Re-generate the attestation with `stamp run`",
+			"stamp verify expects a Sigstore attestation bundle (.sigstore.json)",
+			"Produce one with `stamp run` or `stamp container sign`",
 		)
 		return parseErr
 	}
@@ -295,10 +294,8 @@ func outcomeFromResult(sigRes *sgverify.VerificationResult, path, hash string, r
 	}
 	if sigRes.Signature != nil && sigRes.Signature.Certificate != nil {
 		o.CertificateValid = true
-	}
-	if sigRes.VerifiedIdentity != nil {
-		o.VerifiedSAN = sigRes.VerifiedIdentity.SubjectAlternativeName.SubjectAlternativeName
-		o.VerifiedIssuer = sigRes.VerifiedIdentity.Issuer.Issuer
+		o.VerifiedSAN = sigRes.Signature.Certificate.SubjectAlternativeName
+		o.VerifiedIssuer = sigRes.Signature.Certificate.Issuer
 	}
 	for _, ts := range sigRes.VerifiedTimestamps {
 		if ts.Type == "Tlog" {

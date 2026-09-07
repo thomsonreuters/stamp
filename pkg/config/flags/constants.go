@@ -318,19 +318,20 @@ const (
 	VerifyOutputFile = "commands.verify.output_file"
 
 	// VerifyExpectedSAN is the exact SubjectAlternativeName the signing
-	// certificate must match.
+	// certificate must match. Optional — verify runs without identity
+	// enforcement when unset.
 	VerifyExpectedSAN = "commands.verify.expected_san"
 
 	// VerifyExpectedSANRegex is a regexp the signing certificate SAN must
-	// match.
+	// match. Optional.
 	VerifyExpectedSANRegex = "commands.verify.expected_san_regex"
 
 	// VerifyExpectedIssuer is the exact OIDC issuer the signing certificate
-	// must carry.
+	// must carry. Optional.
 	VerifyExpectedIssuer = "commands.verify.expected_issuer"
 
 	// VerifyExpectedIssuerRegex is a regexp the signing certificate OIDC
-	// issuer must match.
+	// issuer must match. Optional.
 	VerifyExpectedIssuerRegex = "commands.verify.expected_issuer_regex"
 
 	// VerifyPublicKey is the PEM path of the public key used to verify a key-signed bundle.

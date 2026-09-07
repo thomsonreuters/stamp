@@ -12,11 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package verification wraps sigstore-go's verify pipeline with stamp's
-// identity policy plus a single defense-in-depth check (24h cert-validity
-// ceiling). The public API is one function — Verify — that returns
-// sigstore-go's own VerificationResult; operational metadata (path, hash)
-// is the caller's concern. Mirrors cosign's VerifyNewBundle shape.
 package verification
 
 import (
@@ -40,19 +35,18 @@ type Config struct {
 	// VerifyRekor requires the bundle to include a Rekor tlog inclusion proof.
 	VerifyRekor bool
 
-	// Identity policy: exact-match value or regexp for the leaf cert's SAN
-	// and OIDC issuer. At least one of these must be set for a Fulcio-signed
-	// bundle; otherwise Verify returns an error.
+	// Optional identity policy for Fulcio-signed bundles. When any of these
+	// four fields is set, the signer's cert SAN + OIDC issuer must match.
+	// When all are empty, identity is not enforced (verify is crypto-only).
 	ExpectedSAN         string
 	ExpectedSANRegex    string
 	ExpectedIssuer      string
 	ExpectedIssuerRegex string
 }
 
-// Verify runs sigstore-go's verification pipeline against b, applying cfg's
-// identity policy plus stamp's 24h cert-validity check. Returns sigstore-go's
-// own VerificationResult on success; operational metadata (path, hash) is
-// the caller's concern.
+// Verify runs sigstore-go's verification pipeline against b plus stamp's
+// 24h cert-validity check. Returns sigstore-go's own VerificationResult on
+// success.
 func Verify(_ context.Context, tm root.TrustedMaterial, b *bundle.Bundle, cfg Config) (*verify.VerificationResult, error) {
 	if tm == nil {
 		return nil, errors.New("no trusted material available for verification")
@@ -83,8 +77,6 @@ func Verify(_ context.Context, tm root.TrustedMaterial, b *bundle.Bundle, cfg Co
 	return result, nil
 }
 
-// options returns sigstore-go's verifier + policy options for the given
-// bundle and config. Mirrors cosign's CheckOpts.verificationOptions.
 func (cfg Config) options(b *bundle.Bundle) ([]verify.VerifierOption, []verify.PolicyOption, error) {
 	hasCert, err := bundleHasCertificate(b)
 	if err != nil {
@@ -105,15 +97,10 @@ func (cfg Config) options(b *bundle.Bundle) ([]verify.VerifierOption, []verify.P
 	}
 
 	var policyOpts []verify.PolicyOption
-	if !hasCert {
-		// Key-signed bundle: WithKey requires the bundle be key-signed
-		// (rejects a mis-labeled cert bundle) and disables identity checks.
+	switch {
+	case !hasCert:
 		policyOpts = append(policyOpts, verify.WithKey())
-	} else {
-		if !identityConfigured(cfg) {
-			return nil, nil, errors.New(
-				"cert-signed bundle requires identity policy: pass --expected-san / --expected-issuer")
-		}
+	case identityConfigured(cfg):
 		id, err := verify.NewShortCertificateIdentity(
 			cfg.ExpectedIssuer, cfg.ExpectedIssuerRegex,
 			cfg.ExpectedSAN, cfg.ExpectedSANRegex,
@@ -122,9 +109,16 @@ func (cfg Config) options(b *bundle.Bundle) ([]verify.VerifierOption, []verify.P
 			return nil, nil, fmt.Errorf("build certificate identity: %w", err)
 		}
 		policyOpts = append(policyOpts, verify.WithCertificateIdentity(id))
+	default:
+		policyOpts = append(policyOpts, verify.WithoutIdentitiesUnsafe())
 	}
 
 	return verifierOpts, policyOpts, nil
+}
+
+func identityConfigured(cfg Config) bool {
+	return cfg.ExpectedSAN != "" || cfg.ExpectedSANRegex != "" ||
+		cfg.ExpectedIssuer != "" || cfg.ExpectedIssuerRegex != ""
 }
 
 // checkMaxCertValidity enforces stamp's ceiling on leaf-cert lifetime.
@@ -170,9 +164,4 @@ func bundleHasTimestamp(b *bundle.Bundle) bool {
 		return true
 	}
 	return false
-}
-
-func identityConfigured(cfg Config) bool {
-	return cfg.ExpectedSAN != "" || cfg.ExpectedSANRegex != "" ||
-		cfg.ExpectedIssuer != "" || cfg.ExpectedIssuerRegex != ""
 }
