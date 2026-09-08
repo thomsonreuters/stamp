@@ -58,6 +58,7 @@ var VerifyFlags = plugincobra.FlagGroup{
 	},
 	"public-key": {
 		Name:       "public-key",
+		ShortName:  "k",
 		ConfigPath: VerifyPublicKey,
 		Type:       plugincobra.StringFlag,
 		Default:    "",
