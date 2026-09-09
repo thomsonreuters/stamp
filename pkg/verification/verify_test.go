@@ -15,18 +15,19 @@
 package verification
 
 import (
-	"context"
+	"testing"
 
-	"github.com/thomsonreuters/stamp/pkg/intoto"
-	"github.com/thomsonreuters/stamp/pkg/transparency"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-// verifyRekor verifies inclusion in Rekor transparency log and returns validity, warnings, and UUID.
-func (v *Verifier) verifyRekor(ctx context.Context, envelope *intoto.Envelope) (bool, []string, string, error) {
-	rekorClient, err := transparency.NewClient(v.config.RekorURL, v.config.Insecure, v.logger)
-	if err != nil {
-		return false, nil, "", err
-	}
-
-	return rekorClient.VerifyInclusionWithPolicyDetails(ctx, envelope, v.config.RekorTemporalPolicy)
+// TestVerify_NoTrustedMaterial asserts Verify returns an error when it is
+// called without any trust root. The full bundle-verification path is
+// exercised end-to-end by docs/testing/c3-e2e/run-verify.sh; unit tests
+// here cover only the local guards.
+func TestVerify_NoTrustedMaterial(t *testing.T) {
+	result, err := Verify(t.Context(), nil, nil, Config{})
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "no trusted material")
 }

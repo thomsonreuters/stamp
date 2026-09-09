@@ -22,14 +22,25 @@ import (
 	plugincobra "github.com/thomsonreuters/stamp/plugins/cobra"
 )
 
-// RekorEnableFlags contains flags to enable/disable Rekor transparency logging.
+// RekorEnableFlags enables Rekor uploads during signing.
 var RekorEnableFlags = plugincobra.FlagGroup{
 	"rekor": {
 		Name:       "rekor",
 		ConfigPath: TransparencyEnable,
 		Type:       plugincobra.BoolFlag,
 		Default:    false,
-		Help:       "Upload attestations to Rekor transparency log",
+		Help:       "Upload signed attestation to Rekor transparency log",
+	},
+}
+
+// RekorVerifyEnableFlags requires a Rekor tlog inclusion proof during verification.
+var RekorVerifyEnableFlags = plugincobra.FlagGroup{
+	"rekor": {
+		Name:       "rekor",
+		ConfigPath: TransparencyEnable,
+		Type:       plugincobra.BoolFlag,
+		Default:    false,
+		Help:       "Require the bundle to include a valid Rekor transparency-log inclusion proof",
 	},
 }
 

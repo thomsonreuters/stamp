@@ -42,25 +42,6 @@ func TestSignerErrors(t *testing.T) {
 	}
 }
 
-func TestTransparencyErrors(t *testing.T) {
-	tests := []struct {
-		name string
-		err  error
-		msg  string
-	}{
-		{"ErrRekorURLRequired", ErrRekorURLRequired, "rekor_url required when transparency is enabled"},
-		{"ErrRekorClientFailed", ErrRekorClientFailed, "failed to get rekor client"},
-		{"ErrRekorUploadFailed", ErrRekorUploadFailed, "failed to upload to rekor"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			require.Error(t, tt.err)
-			assert.Equal(t, tt.msg, tt.err.Error())
-		})
-	}
-}
-
 func TestAttestorErrors(t *testing.T) {
 	tests := []struct {
 		name string
@@ -175,9 +156,6 @@ func TestErrorsUniqueness(t *testing.T) {
 		ErrSignerInitFailed,
 		ErrSigningFailed,
 		ErrGetSignerFailed,
-		ErrRekorURLRequired,
-		ErrRekorClientFailed,
-		ErrRekorUploadFailed,
 		ErrAttestorNotFound,
 		ErrAttestorConfigFailed,
 		ErrAttestorConfigUnmarshalFailed,

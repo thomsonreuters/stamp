@@ -31,18 +31,6 @@ var (
 	ErrGetSignerFailed = errors.New("failed to get signer")
 )
 
-// Transparency (Rekor) errors.
-var (
-	// ErrRekorURLRequired indicates Rekor URL is required when transparency is enabled.
-	ErrRekorURLRequired = errors.New("rekor_url required when transparency is enabled")
-
-	// ErrRekorClientFailed indicates failed to get Rekor client.
-	ErrRekorClientFailed = errors.New("failed to get rekor client")
-
-	// ErrRekorUploadFailed indicates Rekor upload failed.
-	ErrRekorUploadFailed = errors.New("failed to upload to rekor")
-)
-
 // Attestor errors.
 var (
 	// ErrAttestorNotFound indicates attestor was not found in registry.
