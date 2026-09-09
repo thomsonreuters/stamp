@@ -37,17 +37,12 @@ import (
 	"github.com/thomsonreuters/stamp/pkg/verification"
 )
 
-// VerifyOp verifies a sigstore Bundle v0.3 attestation.
 type VerifyOp struct {
 	config config.ConfigurationIface
 	logger logger.Logger
 	output output.OutputIface
 }
 
-// VerifyOutcome is the CLI-facing outcome of stamp verify. Wraps sigstore-go's
-// VerificationResult with operational metadata (path, hash) and flat booleans
-// suitable for JSON output. The field shape is stable across the C3 refactor
-// — external scripts that parsed the pre-C3 JSON output continue to work.
 type VerifyOutcome struct {
 	Valid            bool     `json:"valid"`
 	SignatureValid   bool     `json:"signature_valid"`
@@ -58,13 +53,17 @@ type VerifyOutcome struct {
 
 	AttestationPath string `json:"attestation_path,omitempty"`
 	AttestationHash string `json:"attestation_hash,omitempty"`
-	RekorEntryUUID  string `json:"rekor_entry_uuid,omitempty"`
+
+	// LogID identifies the Rekor instance (SHA-256 of its public key's SPKI);
+	// LogIndex is the entry's position within that log. Both are needed for a
+	// globally-unique reference, since LogIndex alone isn't unique across instances.
+	RekorLogIndex int64  `json:"rekor_log_index,omitempty"`
+	RekorLogID    string `json:"rekor_log_id,omitempty"`
 
 	VerifiedSAN    string `json:"verified_san,omitempty"`
 	VerifiedIssuer string `json:"verified_issuer,omitempty"`
 }
 
-// Validate checks that the verify operation has valid input parameters.
 func (o *VerifyOp) Validate(attestationPath string) error {
 	validator := pkgerrors.NewValidator()
 
@@ -103,7 +102,6 @@ func (o *VerifyOp) Validate(attestationPath string) error {
 	return nil
 }
 
-// Execute performs the verification operation on the attestation file.
 func (o *VerifyOp) Execute(ctx context.Context, attestationPath string) error {
 	o.logger.InfoContext(ctx, "starting attestation verification", "attestation_path", attestationPath)
 	o.output.Progress("Verifying attestation: %s", attestationPath)
@@ -158,7 +156,7 @@ func (o *VerifyOp) Execute(ctx context.Context, attestationPath string) error {
 		return o.handleVerificationFailure(ctx, verifyErr, attestationPath, hashHex)
 	}
 
-	outcome := outcomeFromResult(sigRes, attestationPath, hashHex, verifyRekor)
+	outcome := outcomeFromResult(sigRes, b, attestationPath, hashHex, verifyRekor)
 
 	o.logger.InfoContext(ctx, "verification completed",
 		"valid", outcome.Valid,
@@ -181,11 +179,6 @@ func (o *VerifyOp) Execute(ctx context.Context, attestationPath string) error {
 	return nil
 }
 
-// resolveTrustMaterial returns the TrustedMaterial the verifier should use.
-// For --public-key invocations, wraps the base trust anchor so the caller's
-// pubkey answers TrustedMaterial.PublicKeyVerifier(hint) — required for
-// user-key bundles that carry only a fingerprint. Fulcio-signed bundles skip
-// the wrap: the cert carries identity inline.
 func (o *VerifyOp) resolveTrustMaterial(ctx context.Context) (sgroot.TrustedMaterial, error) {
 	trustedRoot, err := trust.ResolveTrustedRoot(ctx, o.config, o.logger)
 	if err != nil {
@@ -280,11 +273,7 @@ func (o *VerifyOp) renderVerificationSuccess(oc VerifyOutcome) {
 	}
 }
 
-// outcomeFromResult flattens sigstore-go's VerificationResult into the
-// CLI-facing shape. All boolean fields are true (Valid, SignatureValid) or
-// derived (CertificateValid) — verification.Verify returned success, so we're
-// past every crypto check.
-func outcomeFromResult(sigRes *sgverify.VerificationResult, path, hash string, rekorRequested bool) VerifyOutcome {
+func outcomeFromResult(sigRes *sgverify.VerificationResult, b *sgbundle.Bundle, path, hash string, rekorRequested bool) VerifyOutcome {
 	o := VerifyOutcome{
 		Valid:           true,
 		SignatureValid:  true,
@@ -297,16 +286,20 @@ func outcomeFromResult(sigRes *sgverify.VerificationResult, path, hash string, r
 		o.VerifiedSAN = sigRes.Signature.Certificate.SubjectAlternativeName
 		o.VerifiedIssuer = sigRes.Signature.Certificate.Issuer
 	}
-	for _, ts := range sigRes.VerifiedTimestamps {
-		if ts.Type == "Tlog" {
-			o.RekorEntryUUID = hex.EncodeToString([]byte(ts.URI))
-			break
+	if b != nil && b.Bundle != nil {
+		if vm := b.Bundle.GetVerificationMaterial(); vm != nil {
+			if entries := vm.GetTlogEntries(); len(entries) > 0 {
+				entry := entries[0]
+				o.RekorLogIndex = entry.GetLogIndex()
+				if lid := entry.GetLogId(); lid != nil {
+					o.RekorLogID = hex.EncodeToString(lid.GetKeyId())
+				}
+			}
 		}
 	}
 	return o
 }
 
-// NewVerifyOp creates a new VerifyOp instance with the provided configuration, logger, and output handler.
 func NewVerifyOp(config config.ConfigurationIface, logger logger.Logger, output output.OutputIface) *VerifyOp {
 	return &VerifyOp{
 		config: config,

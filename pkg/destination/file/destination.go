@@ -303,6 +303,22 @@ func (d *Destination) WriteBatch(
 }
 
 // writeBatchAggregate writes all attestations to a single file in aggregate mode.
+//
+// TODO(next-pr): reconsider the array-of-Bundles output format. This shape was
+// carried over from the DSSE-envelope era where each entry was ~200B and self-
+// contained. Sigstore Bundle v0.3 entries are 15-25x larger, duplicate the
+// Fulcio cert / Rekor logID / TSA response across every attestation from the
+// same run, and — most importantly — force decode-and-remarshal here, which
+// breaks byte-for-byte verbatim preservation. No sigstore tool (`cosign`,
+// `sigstore-go`, `sigstore-python`) natively reads an array-of-Bundles; every
+// consumer has to split it themselves before verifying.
+//
+// Preferred replacement: NDJSON (one Bundle per line). Preserves verbatim bytes
+// per entry, streams, appendable, and each line verifies with existing sigstore
+// tooling after a trivial split. Alternative: manifest.json + individual .sigstore.json
+// files (verbatim + workflow-level context, but loses the single-file ergonomic).
+// Rename the current JSON-array shape to a "report" format (non-verifiable) if
+// kept at all.
 func (d *Destination) writeBatchAggregate(
 	ctx context.Context,
 	attestations []*destination.Attestation,
@@ -313,11 +329,12 @@ func (d *Destination) writeBatchAggregate(
 
 	outputPath := config.ResolvePath(attestations[0], opts.WorkflowName)
 
-	// Decode each bundle so the serializer emits a nested array rather than
-	// an array of raw JSON byte strings.
-	envelopes := make([]any, 0, len(attestations))
-	for _, att := range attestations {
+	// Decode bundles into generic values (raw []byte would be base64-encoded);
+	// nil slots preserve positional alignment so dropped attestations show as null.
+	envelopes := make([]any, len(attestations))
+	for i, att := range attestations {
 		if len(att.Bundle) == 0 {
+			envelopes[i] = nil
 			continue
 		}
 		var decoded any
@@ -325,7 +342,7 @@ func (d *Destination) writeBatchAggregate(
 			return nil, destination.NewDestinationError("file", "serialize_attestation",
 				fmt.Errorf("failed to decode bundle for aggregate: %w", err), false)
 		}
-		envelopes = append(envelopes, decoded)
+		envelopes[i] = decoded
 	}
 
 	var data []byte
