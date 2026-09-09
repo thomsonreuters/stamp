@@ -286,18 +286,31 @@ func outcomeFromResult(sigRes *sgverify.VerificationResult, b *sgbundle.Bundle, 
 		o.VerifiedSAN = sigRes.Signature.Certificate.SubjectAlternativeName
 		o.VerifiedIssuer = sigRes.Signature.Certificate.Issuer
 	}
-	if b != nil && b.Bundle != nil {
-		if vm := b.Bundle.GetVerificationMaterial(); vm != nil {
-			if entries := vm.GetTlogEntries(); len(entries) > 0 {
-				entry := entries[0]
-				o.RekorLogIndex = entry.GetLogIndex()
-				if lid := entry.GetLogId(); lid != nil {
-					o.RekorLogID = hex.EncodeToString(lid.GetKeyId())
-				}
-			}
-		}
+	if logIndex, logID, ok := rekorEntryRef(b); ok {
+		o.RekorLogIndex = logIndex
+		o.RekorLogID = logID
 	}
 	return o
+}
+
+func rekorEntryRef(b *sgbundle.Bundle) (int64, string, bool) {
+	if b == nil || b.Bundle == nil {
+		return 0, "", false
+	}
+	vm := b.Bundle.GetVerificationMaterial()
+	if vm == nil {
+		return 0, "", false
+	}
+	entries := vm.GetTlogEntries()
+	if len(entries) == 0 {
+		return 0, "", false
+	}
+	entry := entries[0]
+	var logID string
+	if lid := entry.GetLogId(); lid != nil {
+		logID = hex.EncodeToString(lid.GetKeyId())
+	}
+	return entry.GetLogIndex(), logID, true
 }
 
 func NewVerifyOp(config config.ConfigurationIface, logger logger.Logger, output output.OutputIface) *VerifyOp {
