@@ -66,5 +66,27 @@ func (a *Attestor) ValidateConfig(config core.Config) error {
 			fmt.Sprintf("scan-class must be 'sast' or 'sca', got '%s'", a.config.ScanClass))
 	}
 
+	if a.config.SubjectDigest != "" && !isValidSHA256(a.config.SubjectDigest) {
+		return pkgerrors.NewWithContext(id, "validate",
+			"subject-digest must be a 64-character lowercase hex SHA-256 digest")
+	}
+
 	return nil
+}
+
+// isValidSHA256 reports whether s is exactly 64 lowercase hexadecimal characters,
+// the canonical form of a SHA-256 digest bound as an in-toto subject.
+func isValidSHA256(s string) bool {
+	if len(s) != 64 {
+		return false
+	}
+	for _, c := range s {
+		switch {
+		case c >= '0' && c <= '9':
+		case c >= 'a' && c <= 'f':
+		default:
+			return false
+		}
+	}
+	return true
 }

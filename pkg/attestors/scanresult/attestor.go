@@ -21,6 +21,7 @@
 package scanresult
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -149,7 +150,11 @@ func (a *Attestor) Attest(ctx context.Context, config core.Config) error {
 		return pkgerrors.WrapWithContext(err, id, "collect", "failed to read report file")
 	}
 
-	if err := json.Unmarshal(content, &a.predicate); err != nil {
+	// Fail closed: reject unknown/misspelled fields rather than silently dropping
+	// them, so a producer's mapping mistakes surface instead of being signed away.
+	decoder := json.NewDecoder(bytes.NewReader(content))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&a.predicate); err != nil {
 		return pkgerrors.WrapWithContext(err, id, "collect", "failed to parse scan-result JSON")
 	}
 
@@ -164,6 +169,10 @@ func (a *Attestor) Attest(ctx context.Context, config core.Config) error {
 
 	if a.predicate.SchemaVersion == "" {
 		a.predicate.SchemaVersion = scanpredicate.SchemaVersion
+	}
+
+	if err := a.validatePredicate(); err != nil {
+		return err
 	}
 
 	result, err := a.hasher.HashBytes(ctx, content, a.reportPath)
@@ -186,6 +195,9 @@ func (a *Attestor) Attest(ctx context.Context, config core.Config) error {
 //  1. an explicit --subject-digest,
 //  2. for SCA, the analyzed SBOM digest from inventory,
 //  3. otherwise a sha256 over the normalized report bytes.
+//
+// All externally supplied digests are validated by validatePredicate before this
+// runs, so only known-good SHA-256 values reach the subject here.
 func (a *Attestor) deriveSubject() intoto.Subject {
 	if a.config.SubjectDigest != "" {
 		return intoto.Subject{
@@ -212,6 +224,48 @@ func (a *Attestor) deriveSubject() intoto.Subject {
 		Name:   a.subjectName(),
 		Digest: map[string]string{"sha256": a.reportDigest},
 	}
+}
+
+// validatePredicate fails closed on a structurally invalid or self-inconsistent
+// report before any part of it is hashed and signed.
+func (a *Attestor) validatePredicate() error {
+	if a.config.SubjectDigest != "" && !isValidSHA256(a.config.SubjectDigest) {
+		return pkgerrors.NewWithContext(id, "collect",
+			"subject-digest must be a 64-character lowercase hex SHA-256 digest")
+	}
+
+	if a.predicate.ScanClass == scanpredicate.ScanClassSCA &&
+		a.predicate.Inventory != nil &&
+		a.predicate.Inventory.Digest != nil &&
+		a.predicate.Inventory.Digest.SHA256 != "" &&
+		!isValidSHA256(a.predicate.Inventory.Digest.SHA256) {
+		return pkgerrors.NewWithContext(id, "collect",
+			"inventory.digest.sha256 must be a 64-character lowercase hex SHA-256 digest")
+	}
+
+	if !a.predicate.Scan.Status.IsValid() {
+		return pkgerrors.NewWithContext(id, "collect",
+			fmt.Sprintf("scan.status must be 'success', 'partial' or 'failed', got '%s'",
+				a.predicate.Scan.Status))
+	}
+
+	if a.predicate.Summary.Findings != len(a.predicate.Findings) {
+		return pkgerrors.NewWithContext(id, "collect",
+			fmt.Sprintf("summary.findings (%d) does not match the number of findings (%d)",
+				a.predicate.Summary.Findings, len(a.predicate.Findings)))
+	}
+
+	if a.predicate.ScanClass == scanpredicate.ScanClassSCA &&
+		a.predicate.Summary.Components > 0 &&
+		a.predicate.Inventory != nil &&
+		a.predicate.Inventory.ComponentsScanned > 0 &&
+		a.predicate.Summary.Components > a.predicate.Inventory.ComponentsScanned {
+		return pkgerrors.NewWithContext(id, "collect",
+			fmt.Sprintf("summary.components (%d) exceeds inventory.componentsScanned (%d)",
+				a.predicate.Summary.Components, a.predicate.Inventory.ComponentsScanned))
+	}
+
+	return nil
 }
 
 func (a *Attestor) subjectName() string {

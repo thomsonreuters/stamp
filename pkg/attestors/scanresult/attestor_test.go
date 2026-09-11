@@ -29,6 +29,12 @@ import (
 	scanpredicate "github.com/thomsonreuters/stamp/pkg/predicates/scanresult/v1"
 )
 
+// Real 64-character lowercase hex SHA-256 digests for subject binding tests.
+const (
+	validSHA256    = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+	validSHA256Alt = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+)
+
 func newTestAttestor() *Attestor {
 	return &Attestor{
 		logger: logger.NewNoop(),
@@ -100,10 +106,11 @@ func TestAttest_SAST_SubjectIsReportDigest(t *testing.T) {
 func TestAttest_SCA_SubjectPrefersInventoryDigest(t *testing.T) {
 	p := scanpredicate.Predicate{
 		ScanClass: scanpredicate.ScanClassSCA,
+		Scan:      scanpredicate.Scan{Status: scanpredicate.StatusSuccess},
 		Scanner:   scanpredicate.Scanner{Name: "wiz"},
 		Inventory: &scanpredicate.Inventory{
 			Format: "cyclonedx-json",
-			Digest: &scanpredicate.Digest{SHA256: "deadbeefdeadbeef"},
+			Digest: &scanpredicate.Digest{SHA256: validSHA256},
 		},
 		Summary: scanpredicate.Summary{BySeverity: map[string]int{}},
 	}
@@ -116,17 +123,21 @@ func TestAttest_SCA_SubjectPrefersInventoryDigest(t *testing.T) {
 
 	subjects := a.Subjects(cfg)
 	require.Len(t, subjects, 1)
-	assert.Equal(t, "deadbeefdeadbeef", subjects[0].Digest["sha256"])
+	assert.Equal(t, validSHA256, subjects[0].Digest["sha256"])
 }
 
 func TestAttest_SubjectDigestOverride(t *testing.T) {
-	p := scanpredicate.Predicate{ScanClass: scanpredicate.ScanClassSCA, Summary: scanpredicate.Summary{BySeverity: map[string]int{}}}
+	p := scanpredicate.Predicate{
+		ScanClass: scanpredicate.ScanClassSCA,
+		Scan:      scanpredicate.Scan{Status: scanpredicate.StatusSuccess},
+		Summary:   scanpredicate.Summary{BySeverity: map[string]int{}},
+	}
 	path := writeReport(t, p)
 
 	a := newTestAttestor()
 	cfg := core.Config{
 		keyReportPath:    path,
-		keySubjectDigest: "abc123",
+		keySubjectDigest: validSHA256Alt,
 		keySubjectName:   "sbom+app.cdx.json",
 	}
 	require.NoError(t, a.PreAttest(context.Background(), cfg))
@@ -135,7 +146,119 @@ func TestAttest_SubjectDigestOverride(t *testing.T) {
 	subjects := a.Subjects(cfg)
 	require.Len(t, subjects, 1)
 	assert.Equal(t, "sbom+app.cdx.json", subjects[0].Name)
-	assert.Equal(t, "abc123", subjects[0].Digest["sha256"])
+	assert.Equal(t, validSHA256Alt, subjects[0].Digest["sha256"])
+}
+
+// Item 1: malformed SHA-256 subject digests must be rejected, not signed.
+func TestAttest_RejectsInvalidSubjectDigest(t *testing.T) {
+	p := scanpredicate.Predicate{
+		ScanClass: scanpredicate.ScanClassSCA,
+		Scan:      scanpredicate.Scan{Status: scanpredicate.StatusSuccess},
+		Summary:   scanpredicate.Summary{BySeverity: map[string]int{}},
+	}
+	path := writeReport(t, p)
+
+	badDigests := map[string]string{
+		"short":     "abc123",
+		"uppercase": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+		"non-hex":   "g3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+		"prefixed":  "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b785",
+	}
+	for name, digest := range badDigests {
+		t.Run(name, func(t *testing.T) {
+			a := newTestAttestor()
+			cfg := core.Config{keyReportPath: path, keySubjectDigest: digest}
+			require.NoError(t, a.PreAttest(context.Background(), cfg))
+			require.Error(t, a.Attest(context.Background(), cfg))
+		})
+	}
+}
+
+// Item 1: a malformed inventory digest must be rejected before it becomes the subject.
+func TestAttest_RejectsInvalidInventoryDigest(t *testing.T) {
+	p := scanpredicate.Predicate{
+		ScanClass: scanpredicate.ScanClassSCA,
+		Scan:      scanpredicate.Scan{Status: scanpredicate.StatusSuccess},
+		Scanner:   scanpredicate.Scanner{Name: "wiz"},
+		Inventory: &scanpredicate.Inventory{Digest: &scanpredicate.Digest{SHA256: "deadbeef"}},
+		Summary:   scanpredicate.Summary{BySeverity: map[string]int{}},
+	}
+	path := writeReport(t, p)
+
+	a := newTestAttestor()
+	cfg := core.Config{keyReportPath: path}
+	require.NoError(t, a.PreAttest(context.Background(), cfg))
+	require.Error(t, a.Attest(context.Background(), cfg))
+}
+
+// Item 1: ValidateConfig rejects a malformed --subject-digest up front.
+func TestValidateConfig_RejectsInvalidSubjectDigest(t *testing.T) {
+	path := writeReport(t, scanpredicate.Predicate{ScanClass: scanpredicate.ScanClassSAST})
+	a := newTestAttestor()
+	err := a.ValidateConfig(core.Config{keyReportPath: path, keySubjectDigest: "nothex"})
+	require.Error(t, err)
+}
+
+// Item 2: an unknown/misspelled top-level field must be rejected, not dropped.
+func TestAttest_RejectsUnknownField(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "scan-result.json")
+	raw := `{"scanClass":"sast","scan":{"status":"success"},"findings":[],"summary":{"findings":0,"bySeverity":{}},"scanClas":"typo"}`
+	require.NoError(t, os.WriteFile(path, []byte(raw), 0o600))
+
+	a := newTestAttestor()
+	cfg := core.Config{keyReportPath: path}
+	require.NoError(t, a.PreAttest(context.Background(), cfg))
+	require.Error(t, a.Attest(context.Background(), cfg))
+}
+
+// Item 2: a summary whose finding count disagrees with len(findings) is rejected.
+func TestAttest_RejectsInconsistentSummary(t *testing.T) {
+	p := scanpredicate.Predicate{
+		ScanClass: scanpredicate.ScanClassSAST,
+		Scan:      scanpredicate.Scan{Status: scanpredicate.StatusSuccess},
+		Scanner:   scanpredicate.Scanner{Name: "wiz"},
+		Findings:  []scanpredicate.Finding{{ID: "f1"}},
+		Summary:   scanpredicate.Summary{Findings: 5, BySeverity: map[string]int{}},
+	}
+	path := writeReport(t, p)
+
+	a := newTestAttestor()
+	cfg := core.Config{keyReportPath: path}
+	require.NoError(t, a.PreAttest(context.Background(), cfg))
+	require.Error(t, a.Attest(context.Background(), cfg))
+}
+
+// Item 2: a report with an unrecognized scan status is rejected.
+func TestAttest_RejectsUnknownScanStatus(t *testing.T) {
+	p := scanpredicate.Predicate{
+		ScanClass: scanpredicate.ScanClassSAST,
+		Scan:      scanpredicate.Scan{Status: scanpredicate.ScanStatus("bogus")},
+		Scanner:   scanpredicate.Scanner{Name: "wiz"},
+		Summary:   scanpredicate.Summary{BySeverity: map[string]int{}},
+	}
+	path := writeReport(t, p)
+
+	a := newTestAttestor()
+	cfg := core.Config{keyReportPath: path}
+	require.NoError(t, a.PreAttest(context.Background(), cfg))
+	require.Error(t, a.Attest(context.Background(), cfg))
+}
+
+// Item 2: a well-formed, self-consistent report still passes (happy path).
+func TestAttest_HappyPathPasses(t *testing.T) {
+	p := scanpredicate.Predicate{
+		ScanClass: scanpredicate.ScanClassSAST,
+		Scan:      scanpredicate.Scan{Status: scanpredicate.StatusSuccess},
+		Scanner:   scanpredicate.Scanner{Name: "wiz"},
+		Findings:  []scanpredicate.Finding{{ID: "f1", Severity: "HIGH"}},
+		Summary:   scanpredicate.Summary{Findings: 1, BySeverity: map[string]int{"high": 1}},
+	}
+	path := writeReport(t, p)
+
+	a := newTestAttestor()
+	cfg := core.Config{keyReportPath: path}
+	require.NoError(t, a.PreAttest(context.Background(), cfg))
+	require.NoError(t, a.Attest(context.Background(), cfg))
 }
 
 func TestAttest_InvalidScanClassFails(t *testing.T) {
@@ -153,4 +276,18 @@ func TestSchema(t *testing.T) {
 	schema := a.Schema()
 	require.NotNil(t, schema)
 	assert.Equal(t, "Scan Result Attestation", schema.Title)
+}
+
+// Item 3: the generated schema must enforce the required-field contract.
+func TestSchema_MarksRequiredFields(t *testing.T) {
+	a := newTestAttestor()
+	schema := a.Schema()
+	require.NotNil(t, schema)
+
+	def, ok := schema.Definitions["Predicate"]
+	require.True(t, ok, "Predicate definition must be present in schema")
+
+	for _, field := range []string{"schemaVersion", "scanClass", "scan", "scanner", "findings", "summary"} {
+		assert.Contains(t, def.Required, field, "field %q must be marked required", field)
+	}
 }

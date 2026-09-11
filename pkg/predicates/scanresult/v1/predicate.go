@@ -61,15 +61,28 @@ const (
 	StatusFailed ScanStatus = "failed"
 )
 
+// String returns the scan status as a string.
+func (s ScanStatus) String() string { return string(s) }
+
+// IsValid reports whether the scan status is a recognized value.
+func (s ScanStatus) IsValid() bool {
+	switch s {
+	case StatusSuccess, StatusPartial, StatusFailed:
+		return true
+	default:
+		return false
+	}
+}
+
 // Predicate is the top-level scan-result attestation predicate.
 type Predicate struct {
-	SchemaVersion string        `json:"schemaVersion"`
-	ScanClass     ScanClass     `json:"scanClass"`
-	Scan          Scan          `json:"scan"`
-	Scanner       Scanner       `json:"scanner"`
+	SchemaVersion string        `json:"schemaVersion" jsonschema:"required"`
+	ScanClass     ScanClass     `json:"scanClass" jsonschema:"required"`
+	Scan          Scan          `json:"scan" jsonschema:"required"`
+	Scanner       Scanner       `json:"scanner" jsonschema:"required"`
 	Inventory     *Inventory    `json:"inventory,omitempty"`
-	Findings      []Finding     `json:"findings"`
-	Summary       Summary       `json:"summary"`
+	Findings      []Finding     `json:"findings" jsonschema:"required"`
+	Summary       Summary       `json:"summary" jsonschema:"required"`
 	Policy        *PolicyResult `json:"policy,omitempty"`
 	RawReport     *Artifact     `json:"rawReport,omitempty"`
 }
