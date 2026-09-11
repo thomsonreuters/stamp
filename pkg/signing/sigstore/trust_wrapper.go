@@ -24,9 +24,11 @@ import (
 )
 
 // signerKeyTrustedMaterial overrides PublicKeyVerifier(hint) to return the
-// user's signing key so sign.Bundle's post-sign self-verify passes for
-// user-key signing — public sigstore's trusted_root does not carry user
-// keys. Other methods delegate to the embedded base.
+// user's signing key. Public sigstore's trusted_root does not carry user
+// keys; this wrapper makes hint-based lookup succeed on both the sign side
+// (sign.Bundle's post-sign self-verify) and the verify side
+// (tlog.CompareKey against the Rekor entry's stored verifier).
+// Other methods delegate to the embedded base.
 
 type signerKeyTrustedMaterial struct {
 	root.TrustedMaterial
@@ -40,9 +42,9 @@ func (s *signerKeyTrustedMaterial) PublicKeyVerifier(hint string) (root.TimeCons
 	return s.keyMaterial.PublicKeyVerifier(hint)
 }
 
-// newSignerKeyTrustedMaterial wraps base so PublicKeyVerifier returns a
+// NewSignerKeyTrustedMaterial wraps base so PublicKeyVerifier returns a
 // verifier for pubKey (any hint). Returns base unchanged when pubKey is nil.
-func newSignerKeyTrustedMaterial(base root.TrustedMaterial, pubKey crypto.PublicKey) (root.TrustedMaterial, error) {
+func NewSignerKeyTrustedMaterial(base root.TrustedMaterial, pubKey crypto.PublicKey) (root.TrustedMaterial, error) {
 	if pubKey == nil {
 		return base, nil
 	}

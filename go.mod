@@ -5,7 +5,6 @@ go 1.26.4
 require (
 	github.com/CycloneDX/cyclonedx-go v0.11.0
 	github.com/bmatcuk/doublestar/v4 v4.10.0
-	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/go-containerregistry v0.21.6
 	github.com/google/uuid v1.6.0
 	github.com/invopop/jsonschema v0.14.0
@@ -21,7 +20,6 @@ require (
 	github.com/spiffe/go-spiffe/v2 v2.7.0
 	github.com/stretchr/testify v1.11.1
 	github.com/theupdateframework/go-tuf/v2 v2.4.2-0.20260407074541-7e8f69f906ef
-	github.com/transparency-dev/merkle v0.0.2
 	github.com/zeebo/blake3 v0.2.4
 	go.step.sm/crypto v0.81.0
 	golang.org/x/sync v0.20.0
@@ -115,6 +113,7 @@ require (
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/theupdateframework/go-tuf v0.7.0 // indirect
 	github.com/transparency-dev/formats v0.1.1 // indirect
+	github.com/transparency-dev/merkle v0.0.2 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/otel v1.44.0 // indirect

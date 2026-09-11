@@ -62,6 +62,7 @@ func TestNewSigningConfigResolver_Dispatch(t *testing.T) {
 			opts:     Options{},
 			wantKind: "nil",
 		},
+
 		{
 			name:     "path source → file resolver",
 			opts:     Options{SigningConfigPath: "/some/path.json"},
