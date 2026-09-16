@@ -76,13 +76,13 @@ func (s ScanStatus) IsValid() bool {
 
 // Predicate is the top-level scan-result attestation predicate.
 type Predicate struct {
-	SchemaVersion string        `json:"schemaVersion" jsonschema:"required"`
-	ScanClass     ScanClass     `json:"scanClass" jsonschema:"required"`
-	Scan          Scan          `json:"scan" jsonschema:"required"`
-	Scanner       Scanner       `json:"scanner" jsonschema:"required"`
+	SchemaVersion string        `json:"schemaVersion"       jsonschema:"required"`
+	ScanClass     ScanClass     `json:"scanClass"           jsonschema:"required"`
+	Scan          Scan          `json:"scan"                jsonschema:"required"`
+	Scanner       Scanner       `json:"scanner"             jsonschema:"required"`
 	Inventory     *Inventory    `json:"inventory,omitempty"`
-	Findings      []Finding     `json:"findings" jsonschema:"required"`
-	Summary       Summary       `json:"summary" jsonschema:"required"`
+	Findings      []Finding     `json:"findings"            jsonschema:"required"`
+	Summary       Summary       `json:"summary"             jsonschema:"required"`
 	Policy        *PolicyResult `json:"policy,omitempty"`
 	RawReport     *Artifact     `json:"rawReport,omitempty"`
 }

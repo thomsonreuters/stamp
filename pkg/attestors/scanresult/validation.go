@@ -74,10 +74,13 @@ func (a *Attestor) ValidateConfig(config core.Config) error {
 	return nil
 }
 
+// sha256HexLength is the number of lowercase hexadecimal characters in a SHA-256 digest.
+const sha256HexLength = 64
+
 // isValidSHA256 reports whether s is exactly 64 lowercase hexadecimal characters,
 // the canonical form of a SHA-256 digest bound as an in-toto subject.
 func isValidSHA256(s string) bool {
-	if len(s) != 64 {
+	if len(s) != sha256HexLength {
 		return false
 	}
 	for _, c := range s {

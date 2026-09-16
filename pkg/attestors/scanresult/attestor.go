@@ -154,7 +154,7 @@ func (a *Attestor) Attest(ctx context.Context, config core.Config) error {
 	// them, so a producer's mapping mistakes surface instead of being signed away.
 	decoder := json.NewDecoder(bytes.NewReader(content))
 	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&a.predicate); err != nil {
+	if err = decoder.Decode(&a.predicate); err != nil {
 		return pkgerrors.WrapWithContext(err, id, "collect", "failed to parse scan-result JSON")
 	}
 
@@ -171,7 +171,7 @@ func (a *Attestor) Attest(ctx context.Context, config core.Config) error {
 		a.predicate.SchemaVersion = scanpredicate.SchemaVersion
 	}
 
-	if err := a.validatePredicate(); err != nil {
+	if err = a.validatePredicate(); err != nil {
 		return err
 	}
 
