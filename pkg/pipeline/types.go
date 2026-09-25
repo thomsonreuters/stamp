@@ -37,7 +37,7 @@ type SignedResult struct {
 
 // CollectionResult pairs a collection bundle with the workflow that produced it.
 type CollectionResult struct {
-	// BundleJSON holds the serialized sigstore Bundle v0.3 for the collection.
+	// BundleJSON holds the serialized Sigstore Bundle for the collection.
 	BundleJSON    []byte
 	StatementJSON []byte
 	WorkflowName  string
