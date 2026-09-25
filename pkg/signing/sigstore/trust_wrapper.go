@@ -29,7 +29,6 @@ import (
 // (sign.Bundle's post-sign self-verify) and the verify side
 // (tlog.CompareKey against the Rekor entry's stored verifier).
 // Other methods delegate to the embedded base.
-
 type signerKeyTrustedMaterial struct {
 	root.TrustedMaterial
 	keyMaterial root.TrustedMaterial
