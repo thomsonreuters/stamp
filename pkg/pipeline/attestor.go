@@ -263,7 +263,7 @@ func (p *AttestorPipeline) signAndBundle(ctx context.Context, payload []byte) ([
 }
 
 // handleStdoutOutput writes the attestation to stdout. When signing is
-// configured it emits the sigstore Bundle v0.3; otherwise it emits the raw
+// configured it emits the sigstore Bundle; otherwise it emits the raw
 // in-toto Statement.
 func (p *AttestorPipeline) handleStdoutOutput(ctx context.Context, result SignedResult) error {
 	if p.HasWorkflowContext() {
