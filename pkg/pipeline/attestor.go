@@ -225,7 +225,7 @@ func (p *AttestorPipeline) runAttestorLifecycle(ctx context.Context, attestor co
 	return nil
 }
 
-// signAndBundle signs the statement payload into a sigstore Bundle v0.3.
+// signAndBundle signs the statement payload into a sigstore Bundle.
 // Returns (nil, nil) when signing is not configured; callers must handle
 // nil bundle bytes and fall back to the raw statement.
 func (p *AttestorPipeline) signAndBundle(ctx context.Context, payload []byte) ([]byte, error) {
