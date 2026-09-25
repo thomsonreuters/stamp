@@ -25,7 +25,7 @@ type Pipeline interface {
 
 // SignedResult represents the outcome of processing a single attestation.
 type SignedResult struct {
-	// BundleJSON holds the serialized sigstore Bundle v0.3.
+	// BundleJSON holds the serialized Sigstore Bundle.
 	BundleJSON    []byte
 	Error         error
 	AttestorName  string
