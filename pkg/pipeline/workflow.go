@@ -231,8 +231,8 @@ func (p *WorkflowPipeline) createAttestorOverlay(workflowOverlay config.Configur
 	return config.New(workflowOverlay, overrides)
 }
 
-// signAttestations signs each successful attestor's statement into a sigstore
-// Bundle v0.3. Per-attestor pipelines skip their own signing when inside a
+// signAttestations signs each successful attestor's statement into a Sigstore
+// Bundle. Per-attestor pipelines skip their own signing when inside a
 // workflow so options resolution + Rekor upload happen once per workflow run.
 func (p *WorkflowPipeline) signAttestations(ctx context.Context) error {
 	opts, err := p.GetSigstoreOptions(ctx)
