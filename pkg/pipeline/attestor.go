@@ -256,9 +256,6 @@ func (p *AttestorPipeline) signAndBundle(ctx context.Context, payload []byte) ([
 
 	duration := time.Since(start)
 	p.RecordSigningDuration(duration)
-	if opts.Rekor != nil {
-		p.RecordRekorUploadDuration(duration)
-	}
 	return res.BundleJSON, nil
 }
 

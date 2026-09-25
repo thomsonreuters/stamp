@@ -263,9 +263,6 @@ func (p *WorkflowPipeline) signAttestations(ctx context.Context) error {
 		res, err := signer.SignBundle(ctx, att.StatementJSON, intoto.PayloadType, *opts)
 		duration := time.Since(start)
 		p.RecordSigningDuration(duration)
-		if opts.Rekor != nil {
-			p.RecordRekorUploadDuration(duration)
-		}
 
 		if err != nil {
 			wrapped := pkgerrors.WrapWithContext(err, "signing", "sigstore_bundle",
@@ -430,9 +427,6 @@ func (p *WorkflowPipeline) getOrCreateSignedCollection(ctx context.Context, succ
 		res, err := p.GetSigstoreSigner().SignBundle(ctx, statementJSON, intoto.PayloadType, *opts)
 		duration := time.Since(start)
 		p.RecordSigningDuration(duration)
-		if opts.Rekor != nil {
-			p.RecordRekorUploadDuration(duration)
-		}
 		if err != nil {
 			return nil, pkgerrors.WrapWithContext(err, "workflow", "sign_collection",
 				"failed to sign collection bundle")
