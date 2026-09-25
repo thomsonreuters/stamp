@@ -55,8 +55,8 @@ type WorkflowPipeline struct {
 	workflow *config.Workflow
 	name     string
 	result   *Result
-	// cachedCollection is signed once and reused across stdout, persist,
-	// and upload so all destinations reference the same tlog entry.
+	// cachedCollection is signed once and reused across printing, persisting,
+	// and uploading so all outputs reference the same tlog entry.
 	cachedCollection *CollectionResult
 }
 
