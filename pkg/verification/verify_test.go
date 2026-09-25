@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	protobundle "github.com/sigstore/protobuf-specs/gen/pb-go/bundle/v1"
 	protocommon "github.com/sigstore/protobuf-specs/gen/pb-go/common/v1"
 	"github.com/sigstore/sigstore-go/pkg/bundle"
 	"github.com/sigstore/sigstore-go/pkg/root"
@@ -31,8 +32,6 @@ import (
 	"github.com/sigstore/sigstore/pkg/signature"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	protobundle "github.com/sigstore/protobuf-specs/gen/pb-go/bundle/v1"
 )
 
 // TestVerify_NoTrustedMaterial asserts Verify returns an error when it is
