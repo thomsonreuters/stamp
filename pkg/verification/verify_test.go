@@ -26,7 +26,7 @@ import (
 // exercised end-to-end by docs/testing/c3-e2e/run-verify.sh; unit tests
 // here cover only the local guards.
 func TestVerify_NoTrustedMaterial(t *testing.T) {
-	result, err := Verify(t.Context(), nil, nil, Config{})
+	result, err := Verify(nil, nil, Config{})
 	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "no trusted material")

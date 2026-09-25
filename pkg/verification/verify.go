@@ -15,7 +15,6 @@
 package verification
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -47,7 +46,7 @@ type Config struct {
 // Verify runs sigstore-go's verification pipeline against b plus stamp's
 // 24h cert-validity check. Returns sigstore-go's own VerificationResult on
 // success.
-func Verify(_ context.Context, tm root.TrustedMaterial, b *bundle.Bundle, cfg Config) (*verify.VerificationResult, error) {
+func Verify(tm root.TrustedMaterial, b *bundle.Bundle, cfg Config) (*verify.VerificationResult, error) {
 	if tm == nil {
 		return nil, errors.New("no trusted material available for verification")
 	}
