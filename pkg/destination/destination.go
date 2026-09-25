@@ -32,8 +32,6 @@ package destination
 import (
 	"context"
 	"time"
-
-	"github.com/thomsonreuters/stamp/pkg/intoto"
 )
 
 // Destination represents an output backend for attestations.
@@ -123,10 +121,6 @@ type Destination interface {
 // This structure provides all the information a destination might need
 // for naming, tagging, or organizing the output. All fields are populated
 // by the pipeline before passing to destinations.
-//
-// The Envelope field contains the actual attestation data that should be
-// written to the destination. Other fields provide metadata for path
-// templates, naming, and organizational purposes.
 type Attestation struct {
 	// ID is a unique identifier for this attestation (UUID v4)
 	ID string
@@ -140,16 +134,17 @@ type Attestation struct {
 	// PredicateType is the URI identifying the predicate type
 	PredicateType string
 
-	// Envelope is the complete attestation envelope
-	Envelope *intoto.Envelope
+	// Bundle holds the serialized sigstore Bundle v0.3. Destinations
+	// persist these bytes verbatim.
+	Bundle []byte
 
 	// Timestamp is when the attestation was generated
 	Timestamp time.Time
 
-	// SHA256 is the hash of the envelope content
+	// SHA256 is the hash of the bundle content
 	SHA256 string
 
-	// Size is the size of the serialized envelope in bytes
+	// Size is the size of the serialized bundle in bytes
 	Size int64
 
 	// IsCollection indicates if this is a collection attestation

@@ -15,6 +15,7 @@
 package pipeline
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -23,31 +24,32 @@ import (
 	collectionV1 "github.com/thomsonreuters/stamp/pkg/predicates/collection/v1"
 )
 
-// CreateStructuredCollectionEnvelope bundles multiple attestation envelopes into a collection.
-func CreateStructuredCollectionEnvelope(name string, envelopes []*intoto.Envelope) (*intoto.Envelope, error) {
-	if len(envelopes) == 0 {
+// CreateStructuredCollectionStatement builds an in-toto collection Statement
+// wrapping the given per-attestation statement JSON payloads.
+func CreateStructuredCollectionStatement(name string, statements [][]byte) (*intoto.Statement, error) {
+	if len(statements) == 0 {
 		return nil, pkgerrors.NewWithContext("conversion", "create_collection",
-			fmt.Sprintf("cannot create collection '%s' from empty envelopes", name))
+			fmt.Sprintf("cannot create collection '%s' from empty statements", name))
 	}
 
-	collectionAttestations := make([]collectionV1.CollectionAttestation, 0, len(envelopes))
+	collectionAttestations := make([]collectionV1.CollectionAttestation, 0, len(statements))
 	var allSubjects []intoto.Subject
 	subjectMap := make(map[string]intoto.Subject)
 
-	for _, env := range envelopes {
-		statement, err := env.GetStatement()
-		if err != nil {
-			return nil, pkgerrors.WrapWithContext(err, "conversion", "extract_statement",
-				"failed to extract statement from envelope")
+	for _, payload := range statements {
+		var stmt intoto.Statement
+		if err := json.Unmarshal(payload, &stmt); err != nil {
+			return nil, pkgerrors.WrapWithContext(err, "conversion", "unmarshal_statement",
+				"failed to unmarshal in-toto statement for collection")
 		}
 
 		collectionAttestations = append(collectionAttestations, collectionV1.CollectionAttestation{
-			PredicateType: statement.PredicateType,
-			Predicate:     statement.Predicate,
-			Subjects:      statement.Subject,
+			PredicateType: stmt.PredicateType,
+			Predicate:     stmt.Predicate,
+			Subjects:      stmt.Subject,
 		})
 
-		for _, subject := range statement.Subject {
+		for _, subject := range stmt.Subject {
 			if _, exists := subjectMap[subject.Name]; !exists {
 				subjectMap[subject.Name] = subject
 				allSubjects = append(allSubjects, subject)
@@ -64,14 +66,8 @@ func CreateStructuredCollectionEnvelope(name string, envelopes []*intoto.Envelop
 	collectionStatement, err := intoto.NewStatement(collectionV1.CollectionV1URI, collectionPredicate, allSubjects)
 	if err != nil {
 		return nil, pkgerrors.WrapWithContext(err, "conversion", "create_statement",
-			fmt.Sprintf("failed to create collection statement for '%s' with %d envelopes", name, len(envelopes)))
+			fmt.Sprintf("failed to create collection statement for '%s' with %d attestations", name, len(statements)))
 	}
 
-	collectionEnvelope, err := intoto.NewEnvelope(collectionStatement)
-	if err != nil {
-		return nil, pkgerrors.WrapWithContext(err, "conversion", "create_envelope",
-			fmt.Sprintf("failed to create collection envelope for '%s'", name))
-	}
-
-	return collectionEnvelope, nil
+	return collectionStatement, nil
 }

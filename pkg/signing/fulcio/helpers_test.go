@@ -15,81 +15,11 @@
 package fulcio
 
 import (
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
-	"crypto/x509"
-	"crypto/x509/pkix"
-	"math/big"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-// createTestCertificate creates a test X.509 certificate.
-func createTestCertificate(t *testing.T) *x509.Certificate {
-	t.Helper()
-
-	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	require.NoError(t, err)
-
-	template := &x509.Certificate{
-		SerialNumber: big.NewInt(1),
-		Subject: pkix.Name{
-			CommonName: "Test Certificate",
-		},
-		NotBefore:             time.Now(),
-		NotAfter:              time.Now().Add(10 * time.Minute),
-		KeyUsage:              x509.KeyUsageDigitalSignature,
-		BasicConstraintsValid: true,
-	}
-
-	certDER, err := x509.CreateCertificate(rand.Reader, template, template, &privateKey.PublicKey, privateKey)
-	require.NoError(t, err)
-
-	cert, err := x509.ParseCertificate(certDER)
-	require.NoError(t, err)
-
-	return cert
-}
-
-func TestGenerateKeyIDFromCert(t *testing.T) {
-	cert := createTestCertificate(t)
-
-	keyID, err := generateKeyIDFromCert(cert)
-
-	require.NoError(t, err)
-	assert.NotEmpty(t, keyID)
-	assert.Len(t, keyID, 64) // SHA256 hex = 64 chars
-}
-
-func TestGenerateKeyIDFromCert_Consistent(t *testing.T) {
-	cert := createTestCertificate(t)
-
-	keyID1, err := generateKeyIDFromCert(cert)
-	require.NoError(t, err)
-
-	keyID2, err := generateKeyIDFromCert(cert)
-	require.NoError(t, err)
-
-	assert.Equal(t, keyID1, keyID2)
-}
-
-func TestGenerateKeyIDFromCert_DifferentCerts(t *testing.T) {
-	cert1 := createTestCertificate(t)
-	cert2 := createTestCertificate(t)
-
-	keyID1, err := generateKeyIDFromCert(cert1)
-	require.NoError(t, err)
-
-	keyID2, err := generateKeyIDFromCert(cert2)
-	require.NoError(t, err)
-
-	// Different certificates should have different key IDs
-	assert.NotEqual(t, keyID1, keyID2)
-}
 
 func TestDeriveAudienceFromURL(t *testing.T) {
 	tests := []struct {

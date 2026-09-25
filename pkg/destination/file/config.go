@@ -60,7 +60,7 @@ type Config struct {
 // DefaultConfig returns the default file destination configuration.
 func DefaultConfig() *Config {
 	return &Config{
-		Path:         "./attestations/${attestor}/${id}.json",
+		Path:         "./attestations/${attestor}/${id}.sigstore.json",
 		Permissions:  "0644",
 		CreateDirs:   true,
 		Overwrite:    false,

@@ -12,22 +12,31 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package fulcio provides OIDC token resolution for keyless signing via Fulcio.
 package fulcio
 
 import (
 	"context"
-	"crypto"
-	"crypto/x509"
 	"fmt"
 	"os"
 	"strings"
 
-	"github.com/thomsonreuters/stamp/pkg/clients/fulcio"
 	"github.com/thomsonreuters/stamp/pkg/clients/github"
 	"github.com/thomsonreuters/stamp/pkg/clients/spire"
 	pkgerrors "github.com/thomsonreuters/stamp/pkg/errors"
-	"github.com/thomsonreuters/stamp/pkg/signing"
 )
+
+// SignerConfig holds OIDC token resolution inputs used to obtain a Fulcio
+// signing certificate.
+type SignerConfig struct {
+	FulcioURL        string `json:"fulcio_url"                   yaml:"fulcio_url"                   mapstructure:"fulcio_url"`
+	Token            string `json:"token,omitempty"              yaml:"token,omitempty"              mapstructure:"token,omitempty"`
+	TokenPath        string `json:"token_path,omitempty"         yaml:"token_path,omitempty"         mapstructure:"token_path,omitempty"`
+	UseSpire         bool   `json:"use_spire,omitempty"          yaml:"use_spire,omitempty"          mapstructure:"use_spire,omitempty"`
+	SpireAgentSocket string `json:"spire_agent_socket,omitempty" yaml:"spire_agent_socket,omitempty" mapstructure:"spire_agent_socket,omitempty"`
+	UseGitHub        bool   `json:"use_github,omitempty"         yaml:"use_github,omitempty"         mapstructure:"use_github,omitempty"`
+	Insecure         bool   `json:"insecure,omitempty"           yaml:"insecure,omitempty"           mapstructure:"insecure,omitempty"`
+}
 
 // ResolveToken resolves an OIDC token using the standard precedence:
 //  1. Direct token from config.Token (--oidc-token)
@@ -35,7 +44,7 @@ import (
 //  3. SPIRE workload API (--spire or --socket)
 //  4. GitHub Actions (--github)
 //  5. Auto-detection: GitHub environment or default SPIRE socket (last resort).
-func ResolveToken(ctx context.Context, config signing.FulcioSignerConfig) (string, error) {
+func ResolveToken(ctx context.Context, config SignerConfig) (string, error) {
 	if config.Token != "" {
 		return config.Token, nil
 	}
@@ -104,7 +113,7 @@ func getGitHubActionsIDToken(ctx context.Context) (string, error) {
 	return token, nil
 }
 
-func getSpireWorkloadToken(ctx context.Context, config signing.FulcioSignerConfig) (string, error) {
+func getSpireWorkloadToken(ctx context.Context, config SignerConfig) (string, error) {
 	audience, err := deriveAudienceFromURL(config.FulcioURL)
 	if err != nil {
 		return "", pkgerrors.WrapWithContext(err, "fulcio", "spire-token", "failed to derive audience from Fulcio URL")
@@ -123,32 +132,4 @@ func getSpireWorkloadToken(ctx context.Context, config signing.FulcioSignerConfi
 	}
 
 	return token, nil
-}
-
-// getCertificateFromFulcio requests a certificate from Fulcio using the Fulcio client.
-func getCertificateFromFulcio(
-	ctx context.Context,
-	fulcioURL, token string,
-	publicKey crypto.PublicKey,
-	allowInsecure bool,
-	privateKey crypto.PrivateKey,
-) (*x509.Certificate, error) {
-	client, err := fulcio.New(ctx, fulcio.Options{
-		FulcioURL: fulcioURL,
-		Insecure:  allowInsecure,
-	})
-	if err != nil {
-		return nil, pkgerrors.WrapWithContext(err, "fulcio", "certificate", "failed to create Fulcio client")
-	}
-
-	cert, err := client.GetCertificate(ctx, fulcio.CertificateRequest{
-		Token:      token,
-		PublicKey:  publicKey,
-		PrivateKey: privateKey,
-	})
-	if err != nil {
-		return nil, pkgerrors.WrapWithContext(err, "fulcio", "certificate", "failed to get certificate from Fulcio")
-	}
-
-	return cert, nil
 }
