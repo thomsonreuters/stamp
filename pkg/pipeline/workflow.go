@@ -303,33 +303,31 @@ func (p *WorkflowPipeline) handleStdoutOutput(ctx context.Context, overlayConfig
 	switch outputMode {
 	case OutputModeIndividual:
 		for _, result := range successful {
-			if payload := chooseStdoutPayload(result); payload != nil {
+			if payload := stdoutPayload(result.BundleJSON, result.StatementJSON); payload != nil {
 				dataToOutput = append(dataToOutput, payload)
 			}
 		}
 
 	case OutputModeCollection:
-		collection, err := p.getOrCreateSignedCollection(ctx, successful)
+		payload, err := p.collectionStdoutPayload(ctx, successful)
 		if err != nil {
-			return pkgerrors.WrapWithContext(err, "output", "create_collection",
-				"failed to create collection for stdout output")
+			return err
 		}
-		if payload := collectionStdoutPayload(collection); payload != nil {
+		if payload != nil {
 			dataToOutput = []any{payload}
 		}
 
 	case OutputModeBoth:
 		for _, result := range successful {
-			if payload := chooseStdoutPayload(result); payload != nil {
+			if payload := stdoutPayload(result.BundleJSON, result.StatementJSON); payload != nil {
 				dataToOutput = append(dataToOutput, payload)
 			}
 		}
-		collection, err := p.getOrCreateSignedCollection(ctx, successful)
+		payload, err := p.collectionStdoutPayload(ctx, successful)
 		if err != nil {
-			return pkgerrors.WrapWithContext(err, "output", "create_collection",
-				"failed to create collection for stdout output")
+			return err
 		}
-		if payload := collectionStdoutPayload(collection); payload != nil {
+		if payload != nil {
 			dataToOutput = append(dataToOutput, payload)
 		}
 
@@ -355,27 +353,26 @@ func (p *WorkflowPipeline) handleStdoutOutput(ctx context.Context, overlayConfig
 	return nil
 }
 
-func chooseStdoutPayload(result SignedResult) any {
-	if len(result.BundleJSON) > 0 {
-		return rawJSON(result.BundleJSON)
+func stdoutPayload(bundleJSON, statementJSON []byte) any {
+	if len(bundleJSON) > 0 {
+		return rawJSON(bundleJSON)
 	}
-	if len(result.StatementJSON) > 0 {
-		return rawJSON(result.StatementJSON)
+	if len(statementJSON) > 0 {
+		return rawJSON(statementJSON)
 	}
 	return nil
 }
 
-func collectionStdoutPayload(collection *CollectionResult) any {
+func (p *WorkflowPipeline) collectionStdoutPayload(ctx context.Context, successful []SignedResult) (any, error) {
+	collection, err := p.getOrCreateSignedCollection(ctx, successful)
+	if err != nil {
+		return nil, pkgerrors.WrapWithContext(err, "output", "create_collection",
+			"failed to create collection for stdout output")
+	}
 	if collection == nil {
-		return nil
+		return nil, nil
 	}
-	if len(collection.BundleJSON) > 0 {
-		return rawJSON(collection.BundleJSON)
-	}
-	if len(collection.StatementJSON) > 0 {
-		return rawJSON(collection.StatementJSON)
-	}
-	return nil
+	return stdoutPayload(collection.BundleJSON, collection.StatementJSON), nil
 }
 
 // getOrCreateSignedCollection returns a cached collection or creates one if
