@@ -106,7 +106,7 @@ func ComponentPURL(ecosystem, name, version string) (string, error) {
 
 	name = strings.TrimSpace(name)
 	if name == "" {
-		return "", fmt.Errorf("component name is required to build a PURL")
+		return "", errors.New("component name is required to build a PURL")
 	}
 
 	var namespace string

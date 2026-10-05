@@ -41,8 +41,8 @@ const (
 // producer's internal model so open-source consumers can target it directly.
 type NormalizedInput struct {
 	ScanID    string               `json:"scanId,omitempty"`
-	Scanner   NormalizedScanner    `json:"scanner,omitempty"`
-	Scan      NormalizedScan       `json:"scan,omitempty"`
+	Scanner   NormalizedScanner    `json:"scanner,omitzero"`
+	Scan      NormalizedScan       `json:"scan,omitzero"`
 	Inventory *NormalizedInventory `json:"inventory,omitempty"`
 	RawReport *NormalizedArtifact  `json:"rawReport,omitempty"`
 	Findings  []NormalizedFinding  `json:"findings"`
@@ -285,8 +285,7 @@ func component(f NormalizedFinding) (*scanpredicate.Component, error) {
 		comp.Ecosystem = ecosystem
 		purlStr, err := purl.ComponentPURL(ecosystem, name, version)
 		if err != nil {
-			var unsupported *purl.UnsupportedEcosystemError
-			if errors.As(err, &unsupported) {
+			if _, ok := errors.AsType[*purl.UnsupportedEcosystemError](err); ok {
 				return nil, fmt.Errorf("cannot build component PURL for %q: %w", f.PackageName, err)
 			}
 			return nil, err
@@ -395,7 +394,7 @@ func digestOrNil(sha256hex string) *scanpredicate.Digest {
 
 // splitPackage splits a "name@version" package identity. A missing version yields
 // an empty version string.
-func splitPackage(pkg string) (name, version string) {
+func splitPackage(pkg string) (string, string) {
 	pkg = strings.TrimSpace(pkg)
 	if pkg == "" {
 		return "", ""

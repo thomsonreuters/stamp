@@ -44,7 +44,10 @@ func (snykLoader) Load(content []byte, opts Options) (scanpredicate.Predicate, e
 	case scanpredicate.ScanClassSAST:
 		return loadSnykSAST(content)
 	default:
-		return scanpredicate.Predicate{}, fmt.Errorf("a valid scan-class ('sast' or 'sca') is required for the snyk input-format, got %q", opts.ScanClass)
+		return scanpredicate.Predicate{}, fmt.Errorf(
+			"a valid scan-class ('sast' or 'sca') is required for the snyk input-format, got %q",
+			opts.ScanClass,
+		)
 	}
 }
 

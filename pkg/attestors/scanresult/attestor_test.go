@@ -316,12 +316,12 @@ func TestAttest_SnykInputFormat(t *testing.T) {
 
 	pred, err := a.GeneratePredicate(cfg)
 	require.NoError(t, err)
-	got := pred.(scanpredicate.Predicate)
-	assert.Equal(t, scanpredicate.ScanClassSCA, got.ScanClass)
-	require.Len(t, got.Findings, 1)
-	assert.Equal(t, "pkg:npm/lodash@4.17.20", got.Findings[0].Component.PURL)
-
-	require.Len(t, a.Subjects(cfg), 1)
+	if got, ok := pred.(scanpredicate.Predicate); assert.True(t, ok) {
+		assert.Equal(t, scanpredicate.ScanClassSCA, got.ScanClass)
+		require.Len(t, got.Findings, 1)
+		assert.Equal(t, "pkg:npm/lodash@4.17.20", got.Findings[0].Component.PURL)
+		require.Len(t, a.Subjects(cfg), 1)
+	}
 }
 
 // The normalized input-format maps stamp's vendor-neutral findings document.
@@ -343,10 +343,11 @@ func TestAttest_NormalizedInputFormat(t *testing.T) {
 
 	pred, err := a.GeneratePredicate(cfg)
 	require.NoError(t, err)
-	got := pred.(scanpredicate.Predicate)
-	assert.Equal(t, scanpredicate.ScanClassSCA, got.ScanClass)
-	require.Len(t, got.Findings, 1)
-	assert.Equal(t, "pkg:npm/lodash@4.17.21", got.Findings[0].Component.PURL)
+	if got, ok := pred.(scanpredicate.Predicate); assert.True(t, ok) {
+		assert.Equal(t, scanpredicate.ScanClassSCA, got.ScanClass)
+		require.Len(t, got.Findings, 1)
+		assert.Equal(t, "pkg:npm/lodash@4.17.21", got.Findings[0].Component.PURL)
+	}
 }
 
 // Non-predicate input formats require an explicit scan-class.

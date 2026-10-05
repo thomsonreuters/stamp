@@ -15,7 +15,6 @@
 package purl
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -50,10 +49,10 @@ func TestComponentPURL_Supported(t *testing.T) {
 func TestComponentPURL_UnsupportedEcosystem(t *testing.T) {
 	_, err := ComponentPURL("cobol-packages", "acme", "1.0.0")
 	require.Error(t, err)
-	assert.ErrorIs(t, err, ErrUnsupportedEcosystem)
+	require.ErrorIs(t, err, ErrUnsupportedEcosystem)
 
 	var uee *UnsupportedEcosystemError
-	require.True(t, errors.As(err, &uee))
+	require.ErrorAs(t, err, &uee)
 	assert.Equal(t, "cobol-packages", uee.Ecosystem)
 }
 
