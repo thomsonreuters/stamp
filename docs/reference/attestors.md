@@ -19,6 +19,7 @@ This reference focuses on what `--show-config` does not tell you: which subjects
 | `go-builder`      | `https://slsa.dev/provenance/v1`                             | SLSA v1 provenance for a Go binary built from a `.slsa-goreleaser.yml` specification       |
 | `jwt`             | `https://witness.dev/attestations/jwt/v0.1`                  | A JWT token's header, claims, and signature-verification result                            |
 | `sbom`            | `https://github.com/thomsonreuters/stamp/sbom/v1`            | A CycloneDX or SPDX SBOM document, with optional schema validation                         |
+| `scan-result`     | `https://github.com/thomsonreuters/stamp/scan-result/v1`     | Normalized SAST or SCA security scan findings, ingested from a predicate, normalized findings document, or native scanner output |
 | `ec2`             | `https://github.com/thomsonreuters/stamp/ec2/v1`             | AWS EC2 runtime environment metadata collected from IMDS                                   |
 
 ---
@@ -306,6 +307,44 @@ A single subject for the SBOM file itself:
 ### See also
 
 - Predicate shape: [predicates.md#sbom](./predicates.md#sbom)
+
+---
+
+## scan-result
+
+### Purpose
+
+Attests normalized SAST (static analysis) or SCA (dependency/vulnerability) security scan findings. A single predicate type carries both classes, discriminated by the `scanClass` field. The attestor owns input handling: it turns a predicate, a vendor-neutral normalized findings document, or a supported scanner's native output into the signed predicate, so a standalone `stamp` CLI can attest scanner output without an external normalizer.
+
+### Predicate URI
+
+`https://github.com/thomsonreuters/stamp/scan-result/v1`
+
+### Subjects produced
+
+A single subject binding the attestation to what was scanned. Precedence:
+
+1. An explicit `subject-digest` (e.g. the scanned image or SBOM digest).
+2. For SCA, the analyzed SBOM digest from the predicate's `inventory.digest`.
+3. Otherwise, the `sha256` of the ingested input bytes, named `scan-result+<class>`.
+
+### Key behaviors
+
+- `report-path` is required and points to the input file.
+- `input-format` selects how that file is interpreted:
+  - `predicate` (default) — an already-built `scan-result/v1` predicate. Backward-compatible; the caller owns the mapping. Fails closed on unknown fields.
+  - `normalized` — stamp's vendor-neutral normalized findings document. Producers map their scanner output onto this stable schema; stamp projects it onto the predicate (class discrimination, PURL emission, summary aggregation). Fails closed on unknown fields.
+  - `snyk` — native Snyk output. `snyk test --json` for SCA; the SARIF from `snyk code test --sarif` for SAST. This is the reference loader for out-of-the-box use.
+- `scan-class` (`sast` or `sca`) is required for the `normalized` and `snyk` formats, which carry findings for multiple classes. For `predicate` it overrides the report's embedded class when set.
+- All externally supplied digests are validated as 64-character lowercase hex SHA-256 before being bound as the subject.
+
+### Prerequisites
+
+- The report file exists, is non-empty, and matches the selected `input-format`.
+
+### See also
+
+- Predicate shape: [predicates.md#scan-result](./predicates.md#scan-result)
 
 ---
 
