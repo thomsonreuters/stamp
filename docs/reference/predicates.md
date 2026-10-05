@@ -341,4 +341,3 @@ The `scan-result` attestor produces this predicate from several input formats, s
 - SAST and SCA scans for the same artifact are emitted as separate attestations that share a subject digest and correlation context, letting a verifier assert both classes cover the same artifact.
 - Severity and CVSS are kept distinct: `finding.severity` is the scanner-normalized rating, while `vulnerability.cvss[]` carries structured vectors/scores with their source.
 - Missing data (fix versions, exploitability, CVSS) is omitted rather than fabricated. Suppression/VEX fields are intentionally absent in v1 and may be added additively later.
-
