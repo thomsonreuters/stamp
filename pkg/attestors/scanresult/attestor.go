@@ -21,15 +21,14 @@
 package scanresult
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/invopop/jsonschema"
+	"github.com/thomsonreuters/stamp/pkg/attestors/scanresult/loaders"
 	"github.com/thomsonreuters/stamp/pkg/core"
 	"github.com/thomsonreuters/stamp/pkg/crypto/hash"
 	pkgerrors "github.com/thomsonreuters/stamp/pkg/errors"
@@ -53,6 +52,7 @@ func init() {
 type Config struct {
 	ReportPath    string `json:"report-path"`
 	ScanClass     string `json:"scan-class"`
+	InputFormat   string `json:"input-format"`
 	SubjectName   string `json:"subject-name"`
 	SubjectDigest string `json:"subject-digest"`
 }
@@ -89,8 +89,16 @@ func (a *Attestor) ConfigSchema() []core.ConfigField {
 			Type:        "string",
 			Default:     "",
 			Required:    false,
-			Description: "Optional scan class override ('sast' or 'sca'); defaults to the value in the report",
+			Description: "Scan class ('sast' or 'sca'). Required for the 'normalized' and 'snyk' input formats; for 'predicate' it overrides the report's embedded class when set",
 			Example:     "sca",
+		},
+		{
+			Name:        keyInputFormat,
+			Type:        "string",
+			Default:     loaders.FormatPredicate,
+			Required:    false,
+			Description: "Format of the report file: 'predicate' (a ready scan-result predicate, default), 'normalized' (stamp's vendor-neutral findings document), or 'snyk' (native `snyk test`/`snyk code` output)",
+			Example:     "snyk",
 		},
 		{
 			Name:        keySubjectName,
@@ -115,6 +123,7 @@ func (a *Attestor) parseConfig(config core.Config) {
 	a.config = Config{
 		ReportPath:    config.GetString(keyReportPath, ""),
 		ScanClass:     config.GetString(keyScanClass, ""),
+		InputFormat:   config.GetString(keyInputFormat, loaders.FormatPredicate),
 		SubjectName:   config.GetString(keySubjectName, ""),
 		SubjectDigest: config.GetString(keySubjectDigest, ""),
 	}
@@ -150,12 +159,20 @@ func (a *Attestor) Attest(ctx context.Context, config core.Config) error {
 		return pkgerrors.WrapWithContext(err, id, "collect", "failed to read report file")
 	}
 
-	// Fail closed: reject unknown/misspelled fields rather than silently dropping
-	// them, so a producer's mapping mistakes surface instead of being signed away.
-	decoder := json.NewDecoder(bytes.NewReader(content))
-	decoder.DisallowUnknownFields()
-	if err = decoder.Decode(&a.predicate); err != nil {
-		return pkgerrors.WrapWithContext(err, id, "collect", "failed to parse scan-result JSON")
+	loader, err := loaders.Get(a.config.InputFormat)
+	if err != nil {
+		return pkgerrors.WrapWithContext(err, id, "collect", "failed to resolve input-format loader")
+	}
+
+	// The loader turns the input (a ready predicate, stamp's normalized findings
+	// document, or native scanner output) into a predicate. Strict formats fail
+	// closed on unknown fields so a producer's mapping mistakes surface instead of
+	// being signed away.
+	a.predicate, err = loader.Load(content, loaders.Options{
+		ScanClass: scanpredicate.ScanClass(a.config.ScanClass),
+	})
+	if err != nil {
+		return pkgerrors.WrapWithContext(err, id, "collect", "failed to load scan-result input")
 	}
 
 	// A config override takes precedence over the report's embedded class.

@@ -24,6 +24,7 @@ const (
 const (
 	keyReportPath    = "report-path"
 	keyScanClass     = "scan-class"
+	keyInputFormat   = "input-format"
 	keySubjectName   = "subject-name"
 	keySubjectDigest = "subject-digest"
 )

@@ -26,6 +26,7 @@ The framework's registry maps attestors to predicate URIs, and a single predicat
 | `https://github.com/thomsonreuters/stamp/github-workflow/v1` | `github-workflow`     | GitHub Actions workflow run context                    |
 | `https://witness.dev/attestations/jwt/v0.1`                  | `jwt`                 | JWT header, claims, and verification result            |
 | `https://github.com/thomsonreuters/stamp/sbom/v1`            | `sbom`                | Wrapped CycloneDX or SPDX SBOM document                |
+| `https://github.com/thomsonreuters/stamp/scan-result/v1`     | `scan-result`         | Normalized SAST or SCA security scan findings          |
 
 All predicates are wrapped in an in-toto Statement v1 envelope. See the [in-toto Statement specification](https://github.com/in-toto/attestation/blob/main/spec/v1/statement.md) for the envelope shape (`_type`, `subject`, `predicateType`, `predicate`).
 
@@ -298,3 +299,46 @@ The wrapping predicate is project-specific; the embedded `content` is the upstre
 
 - The predicate embeds the SBOM in full rather than by reference. For large component graphs this produces correspondingly large attestations; consider this when configuring downstream storage and transparency logs.
 - Schema validation is performed at attestation time according to `validate-schema` and `validation-behavior`; the predicate itself does not carry validation status.
+
+---
+
+## scan-result
+
+### URI
+
+`https://github.com/thomsonreuters/stamp/scan-result/v1`
+
+### Producer(s)
+
+- `scan-result`
+
+### Top-level shape
+
+- `schemaVersion`: predicate contract version (currently `1.0`).
+- `scanClass`: `sast` or `sca`; discriminates the finding set.
+- `scan`: execution metadata (`id`, `status`, `startedOn`, `finishedOn`, `scope`).
+- `scanner`: the producing tool (`name`, `vendor`, `version`, optional binary/advisory-DB digests).
+- `inventory` (SCA): the SBOM or manifest analyzed, referenced by `uri` + `digest`.
+- `findings`: unified findings. SAST findings carry `rule`/`weakness`/`location`; SCA findings carry `component` (PURL-first) and `vulnerability` (CVE/GHSA, CVSS, EPSS, CISA KEV). Both may carry SCM `source` context and an `extensions` escape hatch.
+- `summary`: finding counts (`findings`, `components`, `bySeverity`) for cheap policy evaluation.
+- `policy` (optional): a recorded CI gate decision.
+- `rawReport` (optional): the full scanner report referenced out-of-band by `uri` + `digest`.
+
+### Spec reference
+
+The predicate is a stable, vendor-neutral projection of a scanner's output. Producers map native results onto these types rather than emitting raw scanner dumps; unmapped scanner-native fields land in a per-finding `extensions` object.
+
+### Input formats
+
+The `scan-result` attestor produces this predicate from several input formats, selected by its `input-format` configuration:
+
+- `predicate` (default): an already-built predicate.
+- `normalized`: stamp's vendor-neutral normalized findings document (see the `scan-result` attestor reference).
+- `snyk`: native `snyk test --json` (SCA) and Snyk Code SARIF (SAST).
+
+### Notes
+
+- SAST and SCA scans for the same artifact are emitted as separate attestations that share a subject digest and correlation context, letting a verifier assert both classes cover the same artifact.
+- Severity and CVSS are kept distinct: `finding.severity` is the scanner-normalized rating, while `vulnerability.cvss[]` carries structured vectors/scores with their source.
+- Missing data (fix versions, exploitability, CVSS) is omitted rather than fabricated. Suppression/VEX fields are intentionally absent in v1 and may be added additively later.
+

@@ -291,3 +291,78 @@ func TestSchema_MarksRequiredFields(t *testing.T) {
 		assert.Contains(t, def.Required, field, "field %q must be marked required", field)
 	}
 }
+
+// Native scanner output is ingested through a loader and projected onto the
+// predicate, with the subject bound to a digest of the raw input.
+func TestAttest_SnykInputFormat(t *testing.T) {
+	const snykSCA = `{
+  "vulnerabilities": [
+    {
+      "id": "SNYK-JS-LODASH-1", "title": "Prototype Pollution", "severity": "high",
+      "cvssScore": 7.4, "packageName": "lodash", "version": "4.17.20", "packageManager": "npm",
+      "identifiers": { "CVE": ["CVE-2020-8203"] }
+    }
+  ],
+  "packageManager": "npm"
+}`
+	path := filepath.Join(t.TempDir(), "snyk.json")
+	require.NoError(t, os.WriteFile(path, []byte(snykSCA), 0o600))
+
+	a := newTestAttestor()
+	cfg := core.Config{keyReportPath: path, keyInputFormat: "snyk", keyScanClass: "sca"}
+	require.NoError(t, a.ValidateConfig(cfg))
+	require.NoError(t, a.PreAttest(context.Background(), cfg))
+	require.NoError(t, a.Attest(context.Background(), cfg))
+
+	pred, err := a.GeneratePredicate(cfg)
+	require.NoError(t, err)
+	got := pred.(scanpredicate.Predicate)
+	assert.Equal(t, scanpredicate.ScanClassSCA, got.ScanClass)
+	require.Len(t, got.Findings, 1)
+	assert.Equal(t, "pkg:npm/lodash@4.17.20", got.Findings[0].Component.PURL)
+
+	require.Len(t, a.Subjects(cfg), 1)
+}
+
+// The normalized input-format maps stamp's vendor-neutral findings document.
+func TestAttest_NormalizedInputFormat(t *testing.T) {
+	const normalized = `{
+  "scanner": { "name": "wiz" },
+  "findings": [
+    { "scanType": "vulnerability", "severity": "CRITICAL", "ruleId": "CVE-1", "packageName": "lodash@4.17.21", "ecosystem": "npm" }
+  ]
+}`
+	path := filepath.Join(t.TempDir(), "normalized.json")
+	require.NoError(t, os.WriteFile(path, []byte(normalized), 0o600))
+
+	a := newTestAttestor()
+	cfg := core.Config{keyReportPath: path, keyInputFormat: "normalized", keyScanClass: "sca"}
+	require.NoError(t, a.ValidateConfig(cfg))
+	require.NoError(t, a.PreAttest(context.Background(), cfg))
+	require.NoError(t, a.Attest(context.Background(), cfg))
+
+	pred, err := a.GeneratePredicate(cfg)
+	require.NoError(t, err)
+	got := pred.(scanpredicate.Predicate)
+	assert.Equal(t, scanpredicate.ScanClassSCA, got.ScanClass)
+	require.Len(t, got.Findings, 1)
+	assert.Equal(t, "pkg:npm/lodash@4.17.21", got.Findings[0].Component.PURL)
+}
+
+// Non-predicate input formats require an explicit scan-class.
+func TestValidateConfig_NonPredicateRequiresScanClass(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "snyk.json")
+	require.NoError(t, os.WriteFile(path, []byte(`{"vulnerabilities":[]}`), 0o600))
+
+	a := newTestAttestor()
+	err := a.ValidateConfig(core.Config{keyReportPath: path, keyInputFormat: "snyk"})
+	require.Error(t, err)
+}
+
+// An unregistered input-format is rejected up front.
+func TestValidateConfig_RejectsUnknownInputFormat(t *testing.T) {
+	path := writeReport(t, scanpredicate.Predicate{ScanClass: scanpredicate.ScanClassSAST})
+	a := newTestAttestor()
+	err := a.ValidateConfig(core.Config{keyReportPath: path, keyInputFormat: "bogus"})
+	require.Error(t, err)
+}

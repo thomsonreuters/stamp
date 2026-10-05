@@ -19,6 +19,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/thomsonreuters/stamp/pkg/attestors/scanresult/loaders"
 	"github.com/thomsonreuters/stamp/pkg/core"
 	pkgerrors "github.com/thomsonreuters/stamp/pkg/errors"
 	scanpredicate "github.com/thomsonreuters/stamp/pkg/predicates/scanresult/v1"
@@ -64,6 +65,18 @@ func (a *Attestor) ValidateConfig(config core.Config) error {
 	if a.config.ScanClass != "" && !scanpredicate.ScanClass(a.config.ScanClass).IsValid() {
 		return pkgerrors.NewWithContext(id, "validate",
 			fmt.Sprintf("scan-class must be 'sast' or 'sca', got '%s'", a.config.ScanClass))
+	}
+
+	if !loaders.IsValidFormat(a.config.InputFormat) {
+		return pkgerrors.NewWithContext(id, "validate",
+			fmt.Sprintf("input-format must be one of %v, got '%s'", loaders.Formats(), a.config.InputFormat))
+	}
+
+	// Native scanner output and the normalized findings document carry findings for
+	// multiple classes; the attestor must be told which class to project.
+	if a.config.InputFormat != loaders.FormatPredicate && a.config.ScanClass == "" {
+		return pkgerrors.NewWithContext(id, "validate",
+			fmt.Sprintf("scan-class is required when input-format is '%s'", a.config.InputFormat))
 	}
 
 	if a.config.SubjectDigest != "" && !isValidSHA256(a.config.SubjectDigest) {
