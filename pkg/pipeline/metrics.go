@@ -25,7 +25,6 @@ type Metrics struct {
 	FailedExecutions     int
 	SigningDuration      time.Duration
 	DestinationDuration  time.Duration
-	RekorUploadDuration  time.Duration
 }
 
 // NewMetrics creates a new metrics tracker.
@@ -60,7 +59,6 @@ func (m *Metrics) Merge(other *Metrics) {
 	m.FailedExecutions += other.FailedExecutions
 	m.SigningDuration += other.SigningDuration
 	m.DestinationDuration += other.DestinationDuration
-	m.RekorUploadDuration += other.RekorUploadDuration
 	if !other.StartTime.IsZero() && (m.StartTime.IsZero() || other.StartTime.Before(m.StartTime)) {
 		m.StartTime = other.StartTime
 	}

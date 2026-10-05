@@ -162,9 +162,6 @@ const (
 	// RekorUploadTarget specifies what to upload: "individual", "collection", "both".
 	RekorUploadTarget = "pipeline.rekor.upload_target"
 
-	// RekorTemporalPolicy specifies temporal validation policy: "strict" (fail), "warn", "ignore".
-	RekorTemporalPolicy = "pipeline.rekor.temporal_policy"
-
 	// RekorVersion specifies the Rekor API version to speak: 1 (default) or 2.
 	RekorVersion = "pipeline.rekor.version"
 )
@@ -317,11 +314,28 @@ const (
 // ============================================================================
 
 const (
-	// VerifyPublicKey specifies path to public key file for signature verification.
-	VerifyPublicKey = "commands.verify.public_key"
-
 	// VerifyOutputFile saves detailed verification result to JSON file.
 	VerifyOutputFile = "commands.verify.output_file"
+
+	// VerifyExpectedSAN is the exact SubjectAlternativeName the signing
+	// certificate must match. Optional — verify runs without identity
+	// enforcement when unset.
+	VerifyExpectedSAN = "commands.verify.expected_san"
+
+	// VerifyExpectedSANRegex is a regexp the signing certificate SAN must
+	// match. Optional.
+	VerifyExpectedSANRegex = "commands.verify.expected_san_regex"
+
+	// VerifyExpectedIssuer is the exact OIDC issuer the signing certificate
+	// must carry. Optional.
+	VerifyExpectedIssuer = "commands.verify.expected_issuer"
+
+	// VerifyExpectedIssuerRegex is a regexp the signing certificate OIDC
+	// issuer must match. Optional.
+	VerifyExpectedIssuerRegex = "commands.verify.expected_issuer_regex"
+
+	// VerifyPublicKey is the PEM path of the public key used to verify a key-signed bundle.
+	VerifyPublicKey = "commands.verify.public_key"
 )
 
 // ============================================================================

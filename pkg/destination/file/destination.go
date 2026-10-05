@@ -48,6 +48,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -131,12 +132,12 @@ func (d *Destination) GetConfigSchema() []destination.ConfigField {
 			Name:        "path",
 			Type:        "string",
 			Required:    true,
-			Default:     "./attestations/${attestor}/${id}.json",
-			Description: "Output file path for attestations, can contain template variables: ${id}, ${attestor}, ${workflow}, ${date}, ${timestamp}, ${sha256}, ${predicate_type}, ${short_predicate_type}. In aggregate mode, cannot use per-attestation variables (${id}, ${sha256}, ${attestor}, ${predicate_type}).",
+			Default:     "./attestations/${attestor}/${id}.sigstore.json",
+			Description: "Output file path for attestations, can contain template variables: ${id}, ${attestor}, ${workflow}, ${date}, ${timestamp}, ${sha256}, ${predicate_type}, ${short_predicate_type}. In aggregate mode, cannot use per-attestation variables (${id}, ${sha256}, ${attestor}, ${predicate_type}). Attestations are persisted as .sigstore.json bundles.",
 			Examples: []string{
-				"./attestations/${attestor}/${id}.json",
-				"./output/${workflow}-${date}.json",
-				"./collections/${workflow}/${date}-collection-${id}.json",
+				"./attestations/${attestor}/${id}.sigstore.json",
+				"./output/${workflow}-${date}.sigstore.json",
+				"./collections/${workflow}/${date}-collection-${id}.sigstore.json",
 			},
 		},
 		{
@@ -239,18 +240,10 @@ func (d *Destination) writeInternal(
 		}
 	}
 
-	var data []byte
-	var err error
-
-	if config.Pretty {
-		data, err = json.MarshalIndent(attestation.Envelope, "", "  ")
-	} else {
-		data, err = json.Marshal(attestation.Envelope)
-	}
-
-	if err != nil {
+	data := attestation.Bundle
+	if len(data) == 0 {
 		return nil, destination.NewDestinationError("file", "serialize_attestation",
-			fmt.Errorf("failed to marshal attestation envelope: %w", err), false)
+			errors.New("attestation bundle is empty"), false)
 	}
 
 	if ctxErr := ctx.Err(); ctxErr != nil {
@@ -310,6 +303,22 @@ func (d *Destination) WriteBatch(
 }
 
 // writeBatchAggregate writes all attestations to a single file in aggregate mode.
+//
+// TODO(next-pr): reconsider the array-of-Bundles output format. This shape was
+// carried over from the DSSE-envelope era where each entry was ~200B and self-
+// contained. Sigstore Bundle v0.3 entries are 15-25x larger, duplicate the
+// Fulcio cert / Rekor logID / TSA response across every attestation from the
+// same run, and — most importantly — force decode-and-remarshal here, which
+// breaks byte-for-byte verbatim preservation. No sigstore tool (`cosign`,
+// `sigstore-go`, `sigstore-python`) natively reads an array-of-Bundles; every
+// consumer has to split it themselves before verifying.
+//
+// Preferred replacement: NDJSON (one Bundle per line). Preserves verbatim bytes
+// per entry, streams, appendable, and each line verifies with existing sigstore
+// tooling after a trivial split. Alternative: manifest.json + individual .sigstore.json
+// files (verbatim + workflow-level context, but loses the single-file ergonomic).
+// Rename the current JSON-array shape to a "report" format (non-verifiable) if
+// kept at all.
 func (d *Destination) writeBatchAggregate(
 	ctx context.Context,
 	attestations []*destination.Attestation,
@@ -320,9 +329,20 @@ func (d *Destination) writeBatchAggregate(
 
 	outputPath := config.ResolvePath(attestations[0], opts.WorkflowName)
 
+	// Decode bundles into generic values (raw []byte would be base64-encoded);
+	// nil slots preserve positional alignment so dropped attestations show as null.
 	envelopes := make([]any, len(attestations))
 	for i, att := range attestations {
-		envelopes[i] = att.Envelope
+		if len(att.Bundle) == 0 {
+			envelopes[i] = nil
+			continue
+		}
+		var decoded any
+		if err := json.Unmarshal(att.Bundle, &decoded); err != nil {
+			return nil, destination.NewDestinationError("file", "serialize_attestation",
+				fmt.Errorf("failed to decode bundle for aggregate: %w", err), false)
+		}
+		envelopes[i] = decoded
 	}
 
 	var data []byte

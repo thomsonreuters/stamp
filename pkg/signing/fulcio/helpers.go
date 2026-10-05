@@ -15,9 +15,6 @@
 package fulcio
 
 import (
-	"crypto/sha256"
-	"crypto/x509"
-	"encoding/hex"
 	"net/url"
 
 	pkgerrors "github.com/thomsonreuters/stamp/pkg/errors"
@@ -39,14 +36,4 @@ func deriveAudienceFromURL(rawURL string) (string, error) {
 	}
 
 	return parsed.Host, nil
-}
-
-func generateKeyIDFromCert(cert *x509.Certificate) (string, error) {
-	publicKeyDER, err := x509.MarshalPKIXPublicKey(cert.PublicKey)
-	if err != nil {
-		return "", pkgerrors.WrapWithContext(err, "fulcio", "key-id", "failed to marshal public key")
-	}
-
-	hash := sha256.Sum256(publicKeyDER)
-	return hex.EncodeToString(hash[:]), nil
 }

@@ -24,12 +24,9 @@ import (
 
 var containerSignCmd = &cobra.Command{
 	Use:   "sign <image-reference>",
-	Short: "Sign a container image and emit a sigstore Bundle v0.3",
-	Long: `Sign a container image and emit a sigstore Bundle v0.3.
-
-The image reference is resolved to a manifest digest, wrapped in a
-cosign-shaped in-toto Statement, and signed via sigstore-go's sign.Bundle.
-Fulcio keyless signing is supported via --signer fulcio.
+	Short: "Sign a container image and emit a Sigstore attestation bundle",
+	Long: `Sign a container image with a long-lived key or Fulcio keyless.
+Output is a Sigstore attestation bundle (.sigstore.json).
 
 Transparency:
   Pass --rekor to upload the signed bundle to a transparency log

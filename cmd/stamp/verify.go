@@ -25,32 +25,48 @@ import (
 var verifyCmd = &cobra.Command{
 	Use:   "verify <attestation-file>",
 	Short: "Verify attestation signatures and transparency log inclusion",
-	Long: `Verify the cryptographic signature and optionally the transparency log inclusion
-of an attestation. Supports both file-based public key verification and certificate-based
-verification using Fulcio trust bundles.
+	Long: `Verify a Sigstore attestation bundle (.sigstore.json). Auto-detects
+certificate-signed (Fulcio) vs key-signed bundles. Defaults to public
+sigstore; use --trusted-root or --tuf-url + --tuf-root for a private
+deployment.
 
-Verification modes:
-  • Signature verification: Validates cryptographic signatures using public keys or certificates
-  • Rekor inclusion: Verifies the attestation was logged in a transparency log
-  • Temporal validation: Ensures Rekor entries were created within certificate validity periods`,
-	Example: `  # Basic signature verification (auto-detects certificate or key-based)
-  stamp verify attestation.json
+Signer identity is not enforced by default — pass --expected-san /
+--expected-issuer to opt in.`,
+	Example: `  # Public sigstore, crypto-only verification
+  stamp verify attestation.sigstore.json --rekor
 
-  # Verify with explicit public key (for key-based signatures)
-  stamp verify attestation.json --public-key ./public-key.pem
+  # Enforce signer identity
+  stamp verify attestation.sigstore.json --rekor \
+      --expected-san 'https://github.com/org/repo/.github/workflows/build.yaml@refs/heads/main' \
+      --expected-issuer https://token.actions.githubusercontent.com
 
-  # Verify Rekor transparency log inclusion
-  stamp verify attestation.json --rekor
+  # Enforce signer identity via regex
+  stamp verify attestation.sigstore.json --rekor \
+      --expected-san-regex '^https://github\.com/org/.*' \
+      --expected-issuer https://token.actions.githubusercontent.com
 
-  # Verify with custom Rekor server
-  stamp verify attestation.json --rekor --rekor-url https://rekor.example.com
+  # Private TUF
+  stamp verify attestation.sigstore.json --rekor \
+      --tuf-url https://tuf.example.com --tuf-root ./tuf-root.json
 
-  # Strict temporal policy (fail if Rekor entry added after cert expired)
-  stamp verify attestation.json --rekor --rekor-temporal-policy strict
+  # Offline (local trusted_root.json)
+  stamp verify attestation.sigstore.json --rekor \
+      --trusted-root ./trusted_root.json
 
-  # Save verification result to file
-  stamp verify attestation.json --rekor --output-verification result.json`,
+  # Key-signed bundle
+  stamp verify attestation.sigstore.json --public-key ./signer.pub --rekor
+
+  # Save JSON result for scripting
+  stamp verify attestation.sigstore.json --rekor --output-verification result.json`,
 	Args: cobra.ExactArgs(1),
+	PreRunE: func(cmd *cobra.Command, _ []string) error {
+		if cmd.Flags().Changed("trusted-root") && cmd.Flags().Changed("tuf-url") {
+			return errors.NewUsageError(
+				"choose one trust source",
+				"Pass --trusted-root for a local trusted_root.json, or --tuf-url for a TUF repository, not both")
+		}
+		return nil
+	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		op := operations.NewVerifyOp(rootConfig, rootLogger, rootOutput)
 
@@ -67,10 +83,9 @@ Verification modes:
 }
 
 func init() {
-	_ = plugincobra.ApplyFlagGroup(verifyCmd, flags.FulcioServerFlags)
-	_ = plugincobra.ApplyFlagGroup(verifyCmd, flags.RekorEnableFlags)
-	_ = plugincobra.ApplyFlagGroup(verifyCmd, flags.RekorServerFlags)
+	_ = plugincobra.ApplyFlagGroup(verifyCmd, flags.RekorVerifyEnableFlags)
 	_ = plugincobra.ApplyFlagGroup(verifyCmd, flags.VerifyFlags)
+	_ = plugincobra.ApplyFlagGroup(verifyCmd, flags.VerifyTrustFlags)
 
 	rootCmd.AddCommand(verifyCmd)
 }

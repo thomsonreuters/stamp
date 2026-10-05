@@ -86,3 +86,17 @@ var TrustFlags = plugincobra.FlagGroup{
 		Help:       "Fetch the sigstore signing config file from --tuf-url and use its service URLs (default true). Pass --use-signing-config=false to use explicit --fulcio-url/--rekor-url/--tsa-url flags instead.",
 	},
 }
+
+// VerifyTrustFlags contains trust-source overrides for `stamp verify`.
+var VerifyTrustFlags = plugincobra.FlagGroup{
+	"trusted-root": {
+		Name:       "trusted-root",
+		ConfigPath: TrustedRootPath,
+		Type:       plugincobra.StringFlag,
+		Default:    "",
+		Help:       "Path to a sigstore trusted_root.json (mutually exclusive with --tuf-url)",
+	},
+	"tuf-url":           TrustFlags["tuf-url"],
+	"tuf-root":          TrustFlags["tuf-root"],
+	"tuf-root-checksum": TrustFlags["tuf-root-checksum"],
+}
