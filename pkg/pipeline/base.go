@@ -170,11 +170,6 @@ func (p *BasePipeline) RecordSigningDuration(duration time.Duration) {
 	p.metrics.SigningDuration += duration
 }
 
-// RecordRekorUploadDuration adds Rekor upload duration to metrics.
-func (p *BasePipeline) RecordRekorUploadDuration(duration time.Duration) {
-	p.metrics.RekorUploadDuration += duration
-}
-
 // FinalizeMetrics marks the pipeline execution as complete and returns the metrics.
 func (p *BasePipeline) FinalizeMetrics() *Metrics {
 	p.metrics.Finalize()

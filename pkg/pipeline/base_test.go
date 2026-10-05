@@ -161,19 +161,6 @@ func TestBasePipeline_RecordSigningDuration(t *testing.T) {
 	assert.Equal(t, 150*time.Millisecond, p.metrics.SigningDuration)
 }
 
-func TestBasePipeline_RecordRekorUploadDuration(t *testing.T) {
-	cfg := config.NewMockConfiguration()
-	p := NewBasePipeline(cfg, logger.NewNoop(), output.NewNoop())
-
-	assert.Equal(t, time.Duration(0), p.metrics.RekorUploadDuration)
-
-	p.RecordRekorUploadDuration(200 * time.Millisecond)
-	assert.Equal(t, 200*time.Millisecond, p.metrics.RekorUploadDuration)
-
-	p.RecordRekorUploadDuration(100 * time.Millisecond)
-	assert.Equal(t, 300*time.Millisecond, p.metrics.RekorUploadDuration)
-}
-
 func TestBasePipeline_FinalizeMetrics(t *testing.T) {
 	cfg := config.NewMockConfiguration()
 	p := NewBasePipeline(cfg, logger.NewNoop(), output.NewNoop())

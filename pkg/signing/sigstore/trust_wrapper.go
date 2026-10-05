@@ -24,12 +24,11 @@ import (
 )
 
 // signerKeyTrustedMaterial overrides PublicKeyVerifier(hint) to return the
-// user's signing key. Public sigstore's trusted_root does not carry user
+// user's signing key. Public sigstore's trusted root does not carry user
 // keys; this wrapper makes hint-based lookup succeed on both the sign side
 // (sign.Bundle's post-sign self-verify) and the verify side
 // (tlog.CompareKey against the Rekor entry's stored verifier).
 // Other methods delegate to the embedded base.
-
 type signerKeyTrustedMaterial struct {
 	root.TrustedMaterial
 	keyMaterial root.TrustedMaterial

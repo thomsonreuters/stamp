@@ -34,7 +34,6 @@ func TestNewMetrics(t *testing.T) {
 	assert.Equal(t, 0, m.SuccessfulExecutions)
 	assert.Equal(t, 0, m.FailedExecutions)
 	assert.Equal(t, time.Duration(0), m.SigningDuration)
-	assert.Equal(t, time.Duration(0), m.RekorUploadDuration)
 }
 
 func TestMetrics_Duration_NotFinalized(t *testing.T) {
@@ -88,11 +87,9 @@ func TestMetrics_ManualFields(t *testing.T) {
 	m.SuccessfulExecutions = 3
 	m.FailedExecutions = 2
 	m.SigningDuration = 100 * time.Millisecond
-	m.RekorUploadDuration = 200 * time.Millisecond
 
 	assert.Equal(t, 5, m.AttestorExecutions)
 	assert.Equal(t, 3, m.SuccessfulExecutions)
 	assert.Equal(t, 2, m.FailedExecutions)
 	assert.Equal(t, 100*time.Millisecond, m.SigningDuration)
-	assert.Equal(t, 200*time.Millisecond, m.RekorUploadDuration)
 }

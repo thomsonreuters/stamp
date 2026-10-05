@@ -151,7 +151,7 @@ func (o *VerifyOp) Execute(ctx context.Context, attestationPath string) error {
 		o.output.Progress("Verifying signature...")
 	}
 
-	sigRes, verifyErr := verification.Verify(ctx, tm, b, cfg)
+	sigRes, verifyErr := verification.Verify(tm, b, cfg)
 	if verifyErr != nil {
 		return o.handleVerificationFailure(ctx, verifyErr, attestationPath, hashHex)
 	}
