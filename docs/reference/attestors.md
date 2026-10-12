@@ -10,17 +10,17 @@ This reference focuses on what `--show-config` does not tell you: which subjects
 
 ## Index
 
-| ID                | Predicate URI                                                | What it attests                                                                            |
-| ----------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
-| `git`             | `https://github.com/thomsonreuters/stamp/git/v1`             | Source control state: commit, repository status, optional refs/remotes/tags/submodules     |
-| `file`            | `https://github.com/thomsonreuters/stamp/file/v1`            | File and directory hashes plus optional metadata for one or more paths                     |
-| `command`         | `https://github.com/thomsonreuters/stamp/command/v1`         | Execution of a command or script, including timing, exit status, output, and environment   |
-| `github-workflow` | `https://github.com/thomsonreuters/stamp/github-workflow/v1` | GitHub Actions workflow run context (workflow, runner, trigger, repository, optional OIDC) |
-| `go-builder`      | `https://slsa.dev/provenance/v1`                             | SLSA v1 provenance for a Go binary built from a `.slsa-goreleaser.yml` specification       |
-| `jwt`             | `https://witness.dev/attestations/jwt/v0.1`                  | A JWT token's header, claims, and signature-verification result                            |
-| `sbom`            | `https://github.com/thomsonreuters/stamp/sbom/v1`            | A CycloneDX or SPDX SBOM document, with optional schema validation                         |
+| ID                | Predicate URI                                                | What it attests                                                                                                                  |
+| ----------------- | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| `git`             | `https://github.com/thomsonreuters/stamp/git/v1`             | Source control state: commit, repository status, optional refs/remotes/tags/submodules                                           |
+| `file`            | `https://github.com/thomsonreuters/stamp/file/v1`            | File and directory hashes plus optional metadata for one or more paths                                                           |
+| `command`         | `https://github.com/thomsonreuters/stamp/command/v1`         | Execution of a command or script, including timing, exit status, output, and environment                                         |
+| `github-workflow` | `https://github.com/thomsonreuters/stamp/github-workflow/v1` | GitHub Actions workflow run context (workflow, runner, trigger, repository, optional OIDC)                                       |
+| `go-builder`      | `https://slsa.dev/provenance/v1`                             | SLSA v1 provenance for a Go binary built from a `.slsa-goreleaser.yml` specification                                             |
+| `jwt`             | `https://witness.dev/attestations/jwt/v0.1`                  | A JWT token's header, claims, and signature-verification result                                                                  |
+| `sbom`            | `https://github.com/thomsonreuters/stamp/sbom/v1`            | A CycloneDX or SPDX SBOM document, with optional schema validation                                                               |
 | `scan-result`     | `https://github.com/thomsonreuters/stamp/scan-result/v1`     | Normalized SAST or SCA security scan findings, ingested from a predicate, normalized findings document, or native scanner output |
-| `ec2`             | `https://github.com/thomsonreuters/stamp/ec2/v1`             | AWS EC2 runtime environment metadata collected from IMDS                                   |
+| `ec2`             | `https://github.com/thomsonreuters/stamp/ec2/v1`             | AWS EC2 runtime environment metadata collected from IMDS                                                                         |
 
 ---
 
