@@ -48,7 +48,19 @@ func writeReport(t *testing.T, p scanpredicate.Predicate) string {
 	require.NoError(t, err)
 	path := filepath.Join(t.TempDir(), "scan-result.json")
 	require.NoError(t, os.WriteFile(path, data, 0o600))
+	cleanupReport(t, path)
 	return path
+}
+
+// cleanupReport registers a t.Cleanup that removes the scan-result.json written
+// for a test so no report file survives the run.
+func cleanupReport(t *testing.T, path string) {
+	t.Helper()
+	t.Cleanup(func() {
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			t.Errorf("cleanup: removing %s: %v", path, err)
+		}
+	})
 }
 
 func TestIdentity(t *testing.T) {
@@ -204,6 +216,7 @@ func TestAttest_RejectsUnknownField(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "scan-result.json")
 	raw := `{"scanClass":"sast","scan":{"status":"success"},"findings":[],"summary":{"findings":0,"bySeverity":{}},"scanClas":"typo"}`
 	require.NoError(t, os.WriteFile(path, []byte(raw), 0o600))
+	cleanupReport(t, path)
 
 	a := newTestAttestor()
 	cfg := core.Config{keyReportPath: path}
