@@ -194,13 +194,10 @@ func TestNewResolver_Precedence(t *testing.T) {
 	})
 }
 
-// TestOptionsFromConfig_FulcioURL guards against a real bug: --fulcio-url
-// carries a non-empty default (https://fulcio.sigstore.dev) regardless of
-// --signer, so a --signer key invocation with explicit Rekor trust flags
-// (--rekor-url/--rekor-public-key) but no --fulcio-cert-chain used to fail
-// validateExplicit with ErrFulcioCertChainRequired — for a service it was
-// never going to call. OptionsFromConfig must leave FulcioURL empty unless
-// the active signer is actually fulcio.
+// TestOptionsFromConfig_FulcioURL verifies that OptionsFromConfig leaves
+// FulcioURL empty unless the active signer is fulcio, so the non-empty
+// --fulcio-url default never makes Fulcio settings required for other
+// signers.
 func TestOptionsFromConfig_FulcioURL(t *testing.T) {
 	t.Run("signer key leaves FulcioURL empty even with the flag default present", func(t *testing.T) {
 		cfg := newTestConfig(func(v *viper.Viper) {
