@@ -17,10 +17,6 @@ package trust
 import (
 	"context"
 	"crypto"
-	"crypto/ecdsa"
-	"crypto/ed25519"
-	"crypto/elliptic"
-	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/hex"
@@ -29,6 +25,7 @@ import (
 	"os"
 
 	"github.com/sigstore/sigstore-go/pkg/root"
+	"github.com/thomsonreuters/stamp/pkg/crypto/keys"
 )
 
 type explicitResolver struct {
@@ -115,32 +112,8 @@ func loadRekorTLog(path, url string) (*root.TransparencyLog, error) {
 		ID:                sum[:],
 		HashFunc:          crypto.SHA256,
 		PublicKey:         pubKey,
-		SignatureHashFunc: signatureHashAlgo(pubKey),
+		SignatureHashFunc: keys.SignatureHashAlgo(pubKey),
 	}, nil
-}
-
-// Derives the checkpoint-signature hash from the key,
-// since different curves (P-256/P-384/P-521) sign with different hashes.
-func signatureHashAlgo(pubKey crypto.PublicKey) crypto.Hash {
-	switch pk := pubKey.(type) {
-	case *ecdsa.PublicKey:
-		switch pk.Curve {
-		case elliptic.P256():
-			return crypto.SHA256
-		case elliptic.P384():
-			return crypto.SHA384
-		case elliptic.P521():
-			return crypto.SHA512
-		default:
-			return crypto.SHA256
-		}
-	case ed25519.PublicKey:
-		return crypto.SHA512
-	case *rsa.PublicKey:
-		return crypto.SHA256
-	default:
-		return crypto.SHA256
-	}
 }
 
 // PEM chain: first cert = Leaf, last = Root, middle = Intermediates.
