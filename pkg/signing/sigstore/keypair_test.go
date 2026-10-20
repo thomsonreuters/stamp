@@ -31,6 +31,7 @@ import (
 	protocommon "github.com/sigstore/protobuf-specs/gen/pb-go/common/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/thomsonreuters/stamp/pkg/crypto/keys"
 )
 
 func TestDetectAlgorithms(t *testing.T) {
@@ -88,6 +89,7 @@ func TestDetectAlgorithms(t *testing.T) {
 			assert.Equal(t, tt.wantHashPb, hashPb)
 			assert.Equal(t, tt.wantSignAlg, signAlgo)
 			assert.Equal(t, tt.wantKeyAlgo, keyAlgo)
+			assert.Equal(t, keys.SignatureHashAlgo(tt.pub), hash)
 		})
 	}
 }
