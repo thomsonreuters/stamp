@@ -25,6 +25,7 @@ import (
 	"os"
 
 	"github.com/sigstore/sigstore-go/pkg/root"
+	"github.com/thomsonreuters/stamp/pkg/crypto/keys"
 )
 
 type explicitResolver struct {
@@ -111,7 +112,7 @@ func loadRekorTLog(path, url string) (*root.TransparencyLog, error) {
 		ID:                sum[:],
 		HashFunc:          crypto.SHA256,
 		PublicKey:         pubKey,
-		SignatureHashFunc: crypto.SHA256,
+		SignatureHashFunc: keys.SignatureHashAlgo(pubKey),
 	}, nil
 }
 

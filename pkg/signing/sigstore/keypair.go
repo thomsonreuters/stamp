@@ -26,6 +26,7 @@ import (
 	"fmt"
 
 	protocommon "github.com/sigstore/protobuf-specs/gen/pb-go/common/v1"
+	"github.com/thomsonreuters/stamp/pkg/crypto/keys"
 )
 
 // keypairAdapter adapts a stdlib crypto.Signer to sigstore-go's sign.Keypair:
@@ -89,13 +90,13 @@ func detectAlgorithms(pub crypto.PublicKey) (crypto.Hash, protocommon.HashAlgori
 	case *ecdsa.PublicKey:
 		switch k.Curve {
 		case elliptic.P256():
-			return crypto.SHA256, protocommon.HashAlgorithm_SHA2_256,
+			return keys.SignatureHashAlgo(pub), protocommon.HashAlgorithm_SHA2_256,
 				protocommon.PublicKeyDetails_PKIX_ECDSA_P256_SHA_256, "ECDSA", nil
 		case elliptic.P384():
-			return crypto.SHA384, protocommon.HashAlgorithm_SHA2_384,
+			return keys.SignatureHashAlgo(pub), protocommon.HashAlgorithm_SHA2_384,
 				protocommon.PublicKeyDetails_PKIX_ECDSA_P384_SHA_384, "ECDSA", nil
 		case elliptic.P521():
-			return crypto.SHA512, protocommon.HashAlgorithm_SHA2_512,
+			return keys.SignatureHashAlgo(pub), protocommon.HashAlgorithm_SHA2_512,
 				protocommon.PublicKeyDetails_PKIX_ECDSA_P521_SHA_512, "ECDSA", nil
 		default:
 			return 0, 0, 0, "", fmt.Errorf("unsupported ECDSA curve %q", k.Params().Name)
