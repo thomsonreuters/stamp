@@ -218,9 +218,6 @@ func TestOptionsFromConfig_FulcioURL(t *testing.T) {
 	})
 
 	t.Run("signer key with explicit Rekor trust and no Fulcio cert chain succeeds", func(t *testing.T) {
-		// Reproduces the reported CLI repro end to end: stamp container sign
-		// --signer key --rekor --rekor-url ... --rekor-public-key ... with
-		// --fulcio-url left at its default and no --fulcio-cert-chain.
 		cfg := newTestConfig(func(v *viper.Viper) {
 			v.Set(flags.Signer, "key")
 			v.Set(flags.FulcioURL, flags.DefaultFulcioURL)
