@@ -330,10 +330,9 @@ The predicate is a stable, vendor-neutral projection of a scanner's output. Prod
 
 ### Input formats
 
-The `scan-result` attestor produces this predicate from several input formats, selected by its `input-format` configuration:
+The `scan-result` attestor produces this predicate from the input formats below, selected by its `input-format` configuration. Callers do not supply the predicate directly.
 
-- `predicate` (default): an already-built predicate.
-- `normalized`: stamp's vendor-neutral normalized findings document (see the `scan-result` attestor reference).
+- `normalized` (default): stamp's vendor-neutral normalized findings document (see the `scan-result` attestor reference).
 - `snyk`: native `snyk test --json` (SCA) and Snyk Code SARIF (SAST).
 
 ### Notes

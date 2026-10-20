@@ -13,8 +13,8 @@
 // limitations under the License.
 
 // Package loaders converts scanner output into the vendor-neutral scan-result
-// predicate. Each input format (a ready predicate, a stamp-owned normalized
-// findings document, or a supported scanner's native output) is handled by a
+// predicate. Each input format (a stamp-owned normalized findings document or a
+// supported scanner's native output) is handled by a
 // registered Loader, keyed by the attestor's input-format configuration. This
 // keeps all scanner-format awareness inside stamp so a standalone stamp CLI can
 // turn scanner output into a signed attestation without an external normalizer.
@@ -29,11 +29,9 @@ import (
 
 // Input format identifiers accepted by the scan-result attestor.
 const (
-	// FormatPredicate ingests an already-built scan-result predicate JSON file.
-	// It is the default and preserves backward compatibility.
-	FormatPredicate = "predicate"
 	// FormatNormalized ingests the stamp-owned vendor-neutral normalized findings
 	// document. Producers (e.g. SecPipe) map their scanner output onto this schema.
+	// It is the default.
 	FormatNormalized = "normalized"
 	// FormatSnyk ingests native Snyk output: `snyk test --json` for SCA and the
 	// SARIF emitted by `snyk code test --sarif` for SAST. Reference loader.
@@ -55,7 +53,6 @@ type Loader interface {
 }
 
 var registry = map[string]Loader{
-	FormatPredicate:  predicateLoader{},
 	FormatNormalized: normalizedLoader{},
 	FormatSnyk:       snykLoader{},
 }

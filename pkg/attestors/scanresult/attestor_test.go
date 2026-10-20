@@ -19,10 +19,12 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/thomsonreuters/stamp/pkg/attestors/scanresult/loaders"
 	"github.com/thomsonreuters/stamp/pkg/core"
 	"github.com/thomsonreuters/stamp/pkg/crypto/hash"
 	"github.com/thomsonreuters/stamp/pkg/logger"
@@ -42,12 +44,36 @@ func newTestAttestor() *Attestor {
 	}
 }
 
-func writeReport(t *testing.T, p scanpredicate.Predicate) string {
+func writeReport(t *testing.T, in loaders.NormalizedInput) string {
 	t.Helper()
-	data, err := json.Marshal(p)
+	data, err := json.Marshal(in)
 	require.NoError(t, err)
+	return writeRawReport(t, string(data))
+}
+
+// keepTmpEnv, when set to a true value, preserves test report files for inspection.
+const keepTmpEnv = "SCANRESULT_ATTESTOR_KEEP_TMP"
+
+func keepTmp() bool {
+	keep, err := strconv.ParseBool(os.Getenv(keepTmpEnv))
+	return err == nil && keep
+}
+
+func writeRawReport(t *testing.T, raw string) string {
+	t.Helper()
+	if keepTmp() {
+		// t.TempDir is always removed by the testing package, so use a directory
+		// that outlives the test run.
+		dir, err := os.MkdirTemp("", "scanresult-attestor-") //nolint:usetesting // t.TempDir would delete the kept report
+		require.NoError(t, err)
+		path := filepath.Join(dir, "scan-result.json")
+		require.NoError(t, os.WriteFile(path, []byte(raw), 0o600))
+		t.Logf("%s set; keeping report at %s", keepTmpEnv, path)
+		return path
+	}
+
 	path := filepath.Join(t.TempDir(), "scan-result.json")
-	require.NoError(t, os.WriteFile(path, data, 0o600))
+	require.NoError(t, os.WriteFile(path, []byte(raw), 0o600))
 	cleanupReport(t, path)
 	return path
 }
@@ -63,6 +89,24 @@ func cleanupReport(t *testing.T, path string) {
 	})
 }
 
+func sastInput() loaders.NormalizedInput {
+	return loaders.NormalizedInput{
+		Scanner: loaders.NormalizedScanner{Name: "wiz"},
+		Scan:    loaders.NormalizedScan{Status: "success"},
+		Findings: []loaders.NormalizedFinding{
+			{ScanType: "sast", Severity: "HIGH", RuleID: "rule-1", FilePath: "main.go", StartLine: 10},
+		},
+	}
+}
+
+func scaInput() loaders.NormalizedInput {
+	return loaders.NormalizedInput{
+		Scanner:  loaders.NormalizedScanner{Name: "wiz"},
+		Scan:     loaders.NormalizedScan{Status: "success"},
+		Findings: []loaders.NormalizedFinding{},
+	}
+}
+
 func TestIdentity(t *testing.T) {
 	a := newTestAttestor()
 	assert.Equal(t, "scan-result", a.ID())
@@ -72,33 +116,41 @@ func TestIdentity(t *testing.T) {
 }
 
 func TestValidateConfig(t *testing.T) {
-	path := writeReport(t, scanpredicate.Predicate{ScanClass: scanpredicate.ScanClassSAST})
+	path := writeReport(t, sastInput())
 	a := newTestAttestor()
 
-	require.NoError(t, a.ValidateConfig(core.Config{keyReportPath: path}))
+	require.NoError(t, a.ValidateConfig(core.Config{keyReportPath: path, keyScanClass: "sast"}))
 
-	err := a.ValidateConfig(core.Config{})
+	err := a.ValidateConfig(core.Config{keyScanClass: "sast"})
 	require.Error(t, err, "missing report-path must fail")
 
-	err = a.ValidateConfig(core.Config{keyReportPath: filepath.Join(t.TempDir(), "missing.json")})
+	err = a.ValidateConfig(core.Config{
+		keyReportPath: filepath.Join(t.TempDir(), "missing.json"),
+		keyScanClass:  "sast",
+	})
 	require.Error(t, err, "non-existent report must fail")
 
 	err = a.ValidateConfig(core.Config{keyReportPath: path, keyScanClass: "secrets"})
 	require.Error(t, err, "invalid scan-class must fail")
 }
 
-func TestAttest_SAST_SubjectIsReportDigest(t *testing.T) {
-	p := scanpredicate.Predicate{
-		ScanClass: scanpredicate.ScanClassSAST,
-		Scan:      scanpredicate.Scan{Status: scanpredicate.StatusSuccess},
-		Scanner:   scanpredicate.Scanner{Name: "wiz"},
-		Findings:  []scanpredicate.Finding{{ID: "f1", Severity: "HIGH"}},
-		Summary:   scanpredicate.Summary{Findings: 1, BySeverity: map[string]int{"high": 1}},
-	}
-	path := writeReport(t, p)
+// The normalized format is the default when input-format is omitted.
+func TestAttest_DefaultsToNormalizedInputFormat(t *testing.T) {
+	path := writeReport(t, sastInput())
 
 	a := newTestAttestor()
-	cfg := core.Config{keyReportPath: path}
+	cfg := core.Config{keyReportPath: path, keyScanClass: "sast"}
+	require.NoError(t, a.ValidateConfig(cfg))
+	assert.Equal(t, loaders.FormatNormalized, a.config.InputFormat)
+	require.NoError(t, a.PreAttest(context.Background(), cfg))
+	require.NoError(t, a.Attest(context.Background(), cfg))
+}
+
+func TestAttest_SAST_SubjectIsReportDigest(t *testing.T) {
+	path := writeReport(t, sastInput())
+
+	a := newTestAttestor()
+	cfg := core.Config{keyReportPath: path, keyScanClass: "sast"}
 	require.NoError(t, a.PreAttest(context.Background(), cfg))
 	require.NoError(t, a.Attest(context.Background(), cfg))
 
@@ -113,23 +165,16 @@ func TestAttest_SAST_SubjectIsReportDigest(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, scanpredicate.ScanClassSAST, got.ScanClass)
 	assert.Equal(t, scanpredicate.SchemaVersion, got.SchemaVersion)
+	assert.Len(t, got.Findings, 1)
 }
 
 func TestAttest_SCA_SubjectPrefersInventoryDigest(t *testing.T) {
-	p := scanpredicate.Predicate{
-		ScanClass: scanpredicate.ScanClassSCA,
-		Scan:      scanpredicate.Scan{Status: scanpredicate.StatusSuccess},
-		Scanner:   scanpredicate.Scanner{Name: "wiz"},
-		Inventory: &scanpredicate.Inventory{
-			Format: "cyclonedx-json",
-			Digest: &scanpredicate.Digest{SHA256: validSHA256},
-		},
-		Summary: scanpredicate.Summary{BySeverity: map[string]int{}},
-	}
-	path := writeReport(t, p)
+	in := scaInput()
+	in.Inventory = &loaders.NormalizedInventory{Format: "cyclonedx-json", Digest: validSHA256}
+	path := writeReport(t, in)
 
 	a := newTestAttestor()
-	cfg := core.Config{keyReportPath: path}
+	cfg := core.Config{keyReportPath: path, keyScanClass: "sca"}
 	require.NoError(t, a.PreAttest(context.Background(), cfg))
 	require.NoError(t, a.Attest(context.Background(), cfg))
 
@@ -139,16 +184,12 @@ func TestAttest_SCA_SubjectPrefersInventoryDigest(t *testing.T) {
 }
 
 func TestAttest_SubjectDigestOverride(t *testing.T) {
-	p := scanpredicate.Predicate{
-		ScanClass: scanpredicate.ScanClassSCA,
-		Scan:      scanpredicate.Scan{Status: scanpredicate.StatusSuccess},
-		Summary:   scanpredicate.Summary{BySeverity: map[string]int{}},
-	}
-	path := writeReport(t, p)
+	path := writeReport(t, scaInput())
 
 	a := newTestAttestor()
 	cfg := core.Config{
 		keyReportPath:    path,
+		keyScanClass:     "sca",
 		keySubjectDigest: validSHA256Alt,
 		keySubjectName:   "sbom+app.cdx.json",
 	}
@@ -163,12 +204,7 @@ func TestAttest_SubjectDigestOverride(t *testing.T) {
 
 // Item 1: malformed SHA-256 subject digests must be rejected, not signed.
 func TestAttest_RejectsInvalidSubjectDigest(t *testing.T) {
-	p := scanpredicate.Predicate{
-		ScanClass: scanpredicate.ScanClassSCA,
-		Scan:      scanpredicate.Scan{Status: scanpredicate.StatusSuccess},
-		Summary:   scanpredicate.Summary{BySeverity: map[string]int{}},
-	}
-	path := writeReport(t, p)
+	path := writeReport(t, scaInput())
 
 	badDigests := map[string]string{
 		"short":     "abc123",
@@ -179,7 +215,7 @@ func TestAttest_RejectsInvalidSubjectDigest(t *testing.T) {
 	for name, digest := range badDigests {
 		t.Run(name, func(t *testing.T) {
 			a := newTestAttestor()
-			cfg := core.Config{keyReportPath: path, keySubjectDigest: digest}
+			cfg := core.Config{keyReportPath: path, keyScanClass: "sca", keySubjectDigest: digest}
 			require.NoError(t, a.PreAttest(context.Background(), cfg))
 			require.Error(t, a.Attest(context.Background(), cfg))
 		})
@@ -188,95 +224,76 @@ func TestAttest_RejectsInvalidSubjectDigest(t *testing.T) {
 
 // Item 1: a malformed inventory digest must be rejected before it becomes the subject.
 func TestAttest_RejectsInvalidInventoryDigest(t *testing.T) {
-	p := scanpredicate.Predicate{
-		ScanClass: scanpredicate.ScanClassSCA,
-		Scan:      scanpredicate.Scan{Status: scanpredicate.StatusSuccess},
-		Scanner:   scanpredicate.Scanner{Name: "wiz"},
-		Inventory: &scanpredicate.Inventory{Digest: &scanpredicate.Digest{SHA256: "deadbeef"}},
-		Summary:   scanpredicate.Summary{BySeverity: map[string]int{}},
-	}
-	path := writeReport(t, p)
+	in := scaInput()
+	in.Inventory = &loaders.NormalizedInventory{Digest: "deadbeef"}
+	path := writeReport(t, in)
 
 	a := newTestAttestor()
-	cfg := core.Config{keyReportPath: path}
+	cfg := core.Config{keyReportPath: path, keyScanClass: "sca"}
 	require.NoError(t, a.PreAttest(context.Background(), cfg))
 	require.Error(t, a.Attest(context.Background(), cfg))
 }
 
 // Item 1: ValidateConfig rejects a malformed --subject-digest up front.
 func TestValidateConfig_RejectsInvalidSubjectDigest(t *testing.T) {
-	path := writeReport(t, scanpredicate.Predicate{ScanClass: scanpredicate.ScanClassSAST})
+	path := writeReport(t, sastInput())
 	a := newTestAttestor()
-	err := a.ValidateConfig(core.Config{keyReportPath: path, keySubjectDigest: "nothex"})
+	err := a.ValidateConfig(core.Config{keyReportPath: path, keyScanClass: "sast", keySubjectDigest: "nothex"})
 	require.Error(t, err)
 }
 
 // Item 2: an unknown/misspelled top-level field must be rejected, not dropped.
 func TestAttest_RejectsUnknownField(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "scan-result.json")
-	raw := `{"scanClass":"sast","scan":{"status":"success"},"findings":[],"summary":{"findings":0,"bySeverity":{}},"scanClas":"typo"}`
-	require.NoError(t, os.WriteFile(path, []byte(raw), 0o600))
-	cleanupReport(t, path)
+	path := writeRawReport(t, `{"scanner":{"name":"wiz"},"findings":[],"scanerr":"typo"}`)
 
 	a := newTestAttestor()
-	cfg := core.Config{keyReportPath: path}
+	cfg := core.Config{keyReportPath: path, keyScanClass: "sast"}
 	require.NoError(t, a.PreAttest(context.Background(), cfg))
 	require.Error(t, a.Attest(context.Background(), cfg))
 }
 
 // Item 2: a summary whose finding count disagrees with len(findings) is rejected.
-func TestAttest_RejectsInconsistentSummary(t *testing.T) {
-	p := scanpredicate.Predicate{
+// Loaders always derive the summary, so this guards validatePredicate directly.
+func TestValidatePredicate_RejectsInconsistentSummary(t *testing.T) {
+	a := newTestAttestor()
+	a.predicate = scanpredicate.Predicate{
 		ScanClass: scanpredicate.ScanClassSAST,
 		Scan:      scanpredicate.Scan{Status: scanpredicate.StatusSuccess},
 		Scanner:   scanpredicate.Scanner{Name: "wiz"},
 		Findings:  []scanpredicate.Finding{{ID: "f1"}},
 		Summary:   scanpredicate.Summary{Findings: 5, BySeverity: map[string]int{}},
 	}
-	path := writeReport(t, p)
+	require.Error(t, a.validatePredicate())
 
-	a := newTestAttestor()
-	cfg := core.Config{keyReportPath: path}
-	require.NoError(t, a.PreAttest(context.Background(), cfg))
-	require.Error(t, a.Attest(context.Background(), cfg))
+	a.predicate.Summary.Findings = 1
+	require.NoError(t, a.validatePredicate())
 }
 
 // Item 2: a report with an unrecognized scan status is rejected.
 func TestAttest_RejectsUnknownScanStatus(t *testing.T) {
-	p := scanpredicate.Predicate{
-		ScanClass: scanpredicate.ScanClassSAST,
-		Scan:      scanpredicate.Scan{Status: scanpredicate.ScanStatus("bogus")},
-		Scanner:   scanpredicate.Scanner{Name: "wiz"},
-		Summary:   scanpredicate.Summary{BySeverity: map[string]int{}},
-	}
-	path := writeReport(t, p)
+	in := sastInput()
+	in.Scan.Status = "bogus"
+	path := writeReport(t, in)
 
 	a := newTestAttestor()
-	cfg := core.Config{keyReportPath: path}
+	cfg := core.Config{keyReportPath: path, keyScanClass: "sast"}
 	require.NoError(t, a.PreAttest(context.Background(), cfg))
 	require.Error(t, a.Attest(context.Background(), cfg))
 }
 
 // Item 2: a well-formed, self-consistent report still passes (happy path).
 func TestAttest_HappyPathPasses(t *testing.T) {
-	p := scanpredicate.Predicate{
-		ScanClass: scanpredicate.ScanClassSAST,
-		Scan:      scanpredicate.Scan{Status: scanpredicate.StatusSuccess},
-		Scanner:   scanpredicate.Scanner{Name: "wiz"},
-		Findings:  []scanpredicate.Finding{{ID: "f1", Severity: "HIGH"}},
-		Summary:   scanpredicate.Summary{Findings: 1, BySeverity: map[string]int{"high": 1}},
-	}
-	path := writeReport(t, p)
+	path := writeReport(t, sastInput())
 
 	a := newTestAttestor()
-	cfg := core.Config{keyReportPath: path}
+	cfg := core.Config{keyReportPath: path, keyScanClass: "sast"}
 	require.NoError(t, a.PreAttest(context.Background(), cfg))
 	require.NoError(t, a.Attest(context.Background(), cfg))
 }
 
 func TestAttest_InvalidScanClassFails(t *testing.T) {
-	// A report with no scan class and no override must be rejected during Attest.
-	path := writeReport(t, scanpredicate.Predicate{Summary: scanpredicate.Summary{BySeverity: map[string]int{}}})
+	// Without a scan-class the attestor cannot project findings and must fail.
+	path := writeReport(t, sastInput())
 
 	a := newTestAttestor()
 	cfg := core.Config{keyReportPath: path}
@@ -363,20 +380,25 @@ func TestAttest_NormalizedInputFormat(t *testing.T) {
 	}
 }
 
-// Non-predicate input formats require an explicit scan-class.
-func TestValidateConfig_NonPredicateRequiresScanClass(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "snyk.json")
-	require.NoError(t, os.WriteFile(path, []byte(`{"vulnerabilities":[]}`), 0o600))
+// Every input format requires an explicit scan-class.
+func TestValidateConfig_RequiresScanClass(t *testing.T) {
+	snykPath := filepath.Join(t.TempDir(), "snyk.json")
+	require.NoError(t, os.WriteFile(snykPath, []byte(`{"vulnerabilities":[]}`), 0o600))
+	normalizedPath := writeReport(t, sastInput())
 
 	a := newTestAttestor()
-	err := a.ValidateConfig(core.Config{keyReportPath: path, keyInputFormat: "snyk"})
-	require.Error(t, err)
+	require.Error(t, a.ValidateConfig(core.Config{keyReportPath: snykPath, keyInputFormat: "snyk"}))
+	require.Error(t, a.ValidateConfig(core.Config{keyReportPath: normalizedPath}))
+	require.Error(t, a.ValidateConfig(core.Config{keyReportPath: normalizedPath, keyScanClass: ""}))
 }
 
-// An unregistered input-format is rejected up front.
+// An unregistered input-format, including the internal predicate format, is
+// rejected up front.
 func TestValidateConfig_RejectsUnknownInputFormat(t *testing.T) {
-	path := writeReport(t, scanpredicate.Predicate{ScanClass: scanpredicate.ScanClassSAST})
+	path := writeReport(t, sastInput())
 	a := newTestAttestor()
-	err := a.ValidateConfig(core.Config{keyReportPath: path, keyInputFormat: "bogus"})
-	require.Error(t, err)
+	for _, format := range []string{"bogus", "predicate"} {
+		err := a.ValidateConfig(core.Config{keyReportPath: path, keyScanClass: "sast", keyInputFormat: format})
+		require.Error(t, err, format)
+	}
 }

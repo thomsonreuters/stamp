@@ -19,11 +19,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	scanpredicate "github.com/thomsonreuters/stamp/pkg/predicates/scanresult/v1"
 )
 
 func TestRegistry(t *testing.T) {
-	for _, format := range []string{FormatPredicate, FormatNormalized, FormatSnyk} {
+	for _, format := range []string{FormatNormalized, FormatSnyk} {
 		l, err := Get(format)
 		require.NoError(t, err, format)
 		assert.NotNil(t, l)
@@ -34,25 +33,8 @@ func TestRegistry(t *testing.T) {
 	require.Error(t, err)
 	assert.False(t, IsValidFormat("bogus"))
 
-	assert.Equal(t, []string{FormatNormalized, FormatPredicate, FormatSnyk}, Formats())
-}
+	assert.Equal(t, []string{FormatNormalized, FormatSnyk}, Formats())
 
-func TestPredicateLoader_RoundTrip(t *testing.T) {
-	const doc = `{
-  "schemaVersion": "1.0",
-  "scanClass": "sast",
-  "scan": { "status": "success" },
-  "scanner": { "name": "wiz" },
-  "findings": [],
-  "summary": { "findings": 0, "bySeverity": {} }
-}`
-	pred, err := predicateLoader{}.Load([]byte(doc), Options{})
-	require.NoError(t, err)
-	assert.Equal(t, scanpredicate.ScanClassSAST, pred.ScanClass)
-	assert.Equal(t, "wiz", pred.Scanner.Name)
-}
-
-func TestPredicateLoader_UnknownFieldFailsClosed(t *testing.T) {
-	_, err := predicateLoader{}.Load([]byte(`{"scanClass":"sast","surprise":1}`), Options{})
-	require.Error(t, err)
+	_, err = Get("predicate")
+	require.Error(t, err, "the internal predicate format must not be accepted as input")
 }

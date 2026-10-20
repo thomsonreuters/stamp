@@ -35,7 +35,7 @@ func (a *Attestor) ValidateConfig(config core.Config) error {
 
 	if a.config.ReportPath == "" {
 		return pkgerrors.NewWithContext(id, "validate",
-			"report-path must be a non-empty string pointing to a normalized scan-result JSON file")
+			"report-path must be a non-empty string pointing to a scan report file")
 	}
 
 	absPath, err := filepath.Abs(a.config.ReportPath)
@@ -62,7 +62,9 @@ func (a *Attestor) ValidateConfig(config core.Config) error {
 		return pkgerrors.NewWithContext(id, "validate", "report file is empty")
 	}
 
-	if a.config.ScanClass != "" && !scanpredicate.ScanClass(a.config.ScanClass).IsValid() {
+	// Every input format can carry findings for multiple classes, so the attestor
+	// must be told which class to project.
+	if !scanpredicate.ScanClass(a.config.ScanClass).IsValid() {
 		return pkgerrors.NewWithContext(id, "validate",
 			fmt.Sprintf("scan-class must be 'sast' or 'sca', got '%s'", a.config.ScanClass))
 	}
@@ -70,13 +72,6 @@ func (a *Attestor) ValidateConfig(config core.Config) error {
 	if !loaders.IsValidFormat(a.config.InputFormat) {
 		return pkgerrors.NewWithContext(id, "validate",
 			fmt.Sprintf("input-format must be one of %v, got '%s'", loaders.Formats(), a.config.InputFormat))
-	}
-
-	// Native scanner output and the normalized findings document carry findings for
-	// multiple classes; the attestor must be told which class to project.
-	if a.config.InputFormat != loaders.FormatPredicate && a.config.ScanClass == "" {
-		return pkgerrors.NewWithContext(id, "validate",
-			fmt.Sprintf("scan-class is required when input-format is '%s'", a.config.InputFormat))
 	}
 
 	if a.config.SubjectDigest != "" && !isValidSHA256(a.config.SubjectDigest) {

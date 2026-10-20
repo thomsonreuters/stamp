@@ -81,23 +81,23 @@ func (a *Attestor) ConfigSchema() []core.ConfigField {
 			Type:        "string",
 			Default:     "",
 			Required:    true,
-			Description: "Path to the normalized scan-result predicate JSON file to attest",
+			Description: "Path to the scan report file to attest, in the format selected by input-format",
 			Example:     "/path/to/scan-result.json",
 		},
 		{
 			Name:        keyScanClass,
 			Type:        "string",
 			Default:     "",
-			Required:    false,
-			Description: "Scan class ('sast' or 'sca'). Required for the 'normalized' and 'snyk' input formats; for 'predicate' it overrides the report's embedded class when set",
+			Required:    true,
+			Description: "Scan class ('sast' or 'sca') selecting which findings in the report are attested",
 			Example:     "sca",
 		},
 		{
 			Name:        keyInputFormat,
 			Type:        "string",
-			Default:     loaders.FormatPredicate,
+			Default:     loaders.FormatNormalized,
 			Required:    false,
-			Description: "Format of the report file: 'predicate' (a ready scan-result predicate, default), 'normalized' (stamp's vendor-neutral findings document), or 'snyk' (native `snyk test`/`snyk code` output)",
+			Description: "Format of the report file: 'normalized' (stamp's vendor-neutral findings document, default) or 'snyk' (native `snyk test`/`snyk code` output)",
 			Example:     "snyk",
 		},
 		{
@@ -123,7 +123,7 @@ func (a *Attestor) parseConfig(config core.Config) {
 	a.config = Config{
 		ReportPath:    config.GetString(keyReportPath, ""),
 		ScanClass:     config.GetString(keyScanClass, ""),
-		InputFormat:   config.GetString(keyInputFormat, loaders.FormatPredicate),
+		InputFormat:   config.GetString(keyInputFormat, loaders.FormatNormalized),
 		SubjectName:   config.GetString(keySubjectName, ""),
 		SubjectDigest: config.GetString(keySubjectDigest, ""),
 	}
@@ -149,7 +149,7 @@ func (a *Attestor) PreAttest(ctx context.Context, config core.Config) error {
 	return nil
 }
 
-// Attest reads the normalized report, computes its digest, and derives the subject.
+// Attest reads the report, loads it into a predicate, computes its digest, and derives the subject.
 func (a *Attestor) Attest(ctx context.Context, config core.Config) error {
 	start := time.Now()
 	a.logger.InfoContext(ctx, "starting scan-result attestation collection")
@@ -164,10 +164,10 @@ func (a *Attestor) Attest(ctx context.Context, config core.Config) error {
 		return pkgerrors.WrapWithContext(err, id, "collect", "failed to resolve input-format loader")
 	}
 
-	// The loader turns the input (a ready predicate, stamp's normalized findings
-	// document, or native scanner output) into a predicate. Strict formats fail
-	// closed on unknown fields so a producer's mapping mistakes surface instead of
-	// being signed away.
+	// The loader turns the input (stamp's normalized findings document or native
+	// scanner output) into a predicate for the configured scan class. Strict formats
+	// fail closed on unknown fields so a producer's mapping mistakes surface instead
+	// of being signed away.
 	a.predicate, err = loader.Load(content, loaders.Options{
 		ScanClass: scanpredicate.ScanClass(a.config.ScanClass),
 	})
@@ -175,10 +175,6 @@ func (a *Attestor) Attest(ctx context.Context, config core.Config) error {
 		return pkgerrors.WrapWithContext(err, id, "collect", "failed to load scan-result input")
 	}
 
-	// A config override takes precedence over the report's embedded class.
-	if a.config.ScanClass != "" {
-		a.predicate.ScanClass = scanpredicate.ScanClass(a.config.ScanClass)
-	}
 	if !a.predicate.ScanClass.IsValid() {
 		return pkgerrors.NewWithContext(id, "collect",
 			fmt.Sprintf("scan class must be 'sast' or 'sca', got '%s'", a.predicate.ScanClass))
@@ -211,7 +207,7 @@ func (a *Attestor) Attest(ctx context.Context, config core.Config) error {
 // deriveSubject binds the attestation to what was scanned. Precedence:
 //  1. an explicit --subject-digest,
 //  2. for SCA, the analyzed SBOM digest from inventory,
-//  3. otherwise a sha256 over the normalized report bytes.
+//  3. otherwise a sha256 over the raw report bytes.
 //
 // All externally supplied digests are validated by validatePredicate before this
 // runs, so only known-good SHA-256 values reach the subject here.

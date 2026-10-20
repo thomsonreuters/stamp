@@ -1,6 +1,6 @@
 module github.com/thomsonreuters/stamp
 
-go 1.26.4
+go 1.26.10
 
 require (
 	github.com/CycloneDX/cyclonedx-go v0.11.0
