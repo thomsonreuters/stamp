@@ -29,7 +29,10 @@ All JSON tags on predicate types and on any struct that is serialized to a
 DSSE envelope use **snake_case**. This is consistent with the SLSA
 provenance spec for fields we serialize ourselves (we leave the SLSA-defined
 `buildDefinition` / `runDetails` camelCase alone in `pkg/predicates/go-builder/v1`
-because the SLSA spec uses camelCase).
+because the SLSA spec uses camelCase). The source-side predicates
+(`pr-review`, `source-provenance`, `source-onboarding`, `emergency-change`,
+`verification-summary`) are likewise camelCase because their wire format is
+fixed by an external specification.
 
 Correct:
 

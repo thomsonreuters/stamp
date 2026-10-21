@@ -32,9 +32,10 @@ type Statement struct {
 	Predicate     any       `json:"predicate"`
 }
 
-// Subject represents an in-toto subject.
+// Subject represents an in-toto subject. Name is optional on the wire per the
+// in-toto v1 specification; Validate still requires it for statements stamp signs.
 type Subject struct {
-	Name   string            `json:"name"`
+	Name   string            `json:"name,omitempty"`
 	Digest map[string]string `json:"digest"`
 }
 

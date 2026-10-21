@@ -11,21 +11,28 @@ The major version is encoded in the URI path. Breaking changes to a predicate's 
 - The Go Builder attestor emits the standard SLSA Provenance v1 URI rather than a custom one, so consumers that already understand SLSA can parse it without special-casing.
 - The JWT attestor emits the Witness project's JWT attestation URI for interoperability with the Witness ecosystem.
 
+The [source-side predicates](#source-side-predicates) are also exceptions: their URIs and camelCase field names are fixed by the *GitHub Source Attestations* specification, and the SLSA VSA uses its upstream URI.
+
 The framework's registry maps attestors to predicate URIs, and a single predicate URI may be produced by more than one attestor when their output shapes are compatible. Today this only applies to SLSA Provenance v1 (produced by `go-builder`); the framework is designed to allow additional builder attestors to share the same URI.
 
 ## Index
 
-| Predicate URI                                                | Producing attestor(s) | One-line purpose                                       |
-| ------------------------------------------------------------ | --------------------- | ------------------------------------------------------ |
-| `https://slsa.dev/provenance/v1`                             | `go-builder`          | SLSA v1 build provenance                               |
-| `https://github.com/thomsonreuters/stamp/collection/v1`      | (pipeline output)     | Wraps a set of attestations from a single pipeline run |
-| `https://github.com/thomsonreuters/stamp/command/v1`         | `command`             | Evidence of a command or script execution              |
-| `https://github.com/thomsonreuters/stamp/ec2/v1`             | `ec2`                 | AWS EC2 instance runtime environment                   |
-| `https://github.com/thomsonreuters/stamp/file/v1`            | `file`                | File and directory hashes plus metadata                |
-| `https://github.com/thomsonreuters/stamp/git/v1`             | `git`                 | Git repository commit and working-tree state           |
-| `https://github.com/thomsonreuters/stamp/github-workflow/v1` | `github-workflow`     | GitHub Actions workflow run context                    |
-| `https://witness.dev/attestations/jwt/v0.1`                  | `jwt`                 | JWT header, claims, and verification result            |
-| `https://github.com/thomsonreuters/stamp/sbom/v1`            | `sbom`                | Wrapped CycloneDX or SPDX SBOM document                |
+| Predicate URI                                                  | Producing attestor(s) | One-line purpose                                             |
+| -------------------------------------------------------------- | --------------------- | ------------------------------------------------------------ |
+| `https://slsa.dev/provenance/v1`                               | `go-builder`          | SLSA v1 build provenance                                     |
+| `https://github.com/thomsonreuters/stamp/collection/v1`        | (pipeline output)     | Wraps a set of attestations from a single pipeline run       |
+| `https://github.com/thomsonreuters/stamp/command/v1`           | `command`             | Evidence of a command or script execution                    |
+| `https://github.com/thomsonreuters/stamp/ec2/v1`               | `ec2`                 | AWS EC2 instance runtime environment                         |
+| `https://github.com/thomsonreuters/stamp/file/v1`              | `file`                | File and directory hashes plus metadata                      |
+| `https://github.com/thomsonreuters/stamp/git/v1`               | `git`                 | Git repository commit and working-tree state                 |
+| `https://github.com/thomsonreuters/stamp/github-workflow/v1`   | `github-workflow`     | GitHub Actions workflow run context                          |
+| `https://witness.dev/attestations/jwt/v0.1`                    | `jwt`                 | JWT header, claims, and verification result                  |
+| `https://github.com/thomsonreuters/stamp/sbom/v1`              | `sbom`                | Wrapped CycloneDX or SPDX SBOM document                      |
+| `https://attestations.thomsonreuters.com/pr-review/v1`         | (library builder)     | Four-eye review of a merged pull request                     |
+| `https://attestations.thomsonreuters.com/source-provenance/v1` | (library builder)     | Bridge from a landed commit to its reviewed parents          |
+| `https://attestations.thomsonreuters.com/source-onboarding/v1` | (library builder)     | Genesis baseline for a protected branch                      |
+| `https://attestations.thomsonreuters.com/emergency-change/v1`  | (library builder)     | Time-bound break-glass authorization                         |
+| `https://slsa.dev/verification_summary/v1`                     | (library builder)     | SLSA Verification Summary Attestation (source gates, deploy) |
 
 All predicates are wrapped in an in-toto Statement v1 envelope. See the [in-toto Statement specification](https://github.com/in-toto/attestation/blob/main/spec/v1/statement.md) for the envelope shape (`_type`, `subject`, `predicateType`, `predicate`).
 
@@ -298,3 +305,48 @@ The wrapping predicate is project-specific; the embedded `content` is the upstre
 
 - The predicate embeds the SBOM in full rather than by reference. For large component graphs this produces correspondingly large attestations; consider this when configuring downstream storage and transparency logs.
 - Schema validation is performed at attestation time according to `validate-schema` and `validation-behavior`; the predicate itself does not carry validation status.
+
+---
+
+## Source-side predicates
+
+The source-side predicates attest four-eye reviews, branch promotions and exceptions for the *GitHub Source Attestations* model. stamp provides the typed predicates, validation and statement builders; producers (the GitHub App, onboarding tool and break-glass workflow) live outside this repository.
+
+### URIs and packages
+
+| Predicate URI                                                  | Package                                  |
+| -------------------------------------------------------------- | ---------------------------------------- |
+| `https://attestations.thomsonreuters.com/pr-review/v1`         | `pkg/predicates/pr-review/v1`            |
+| `https://attestations.thomsonreuters.com/source-provenance/v1` | `pkg/predicates/source-provenance/v1`    |
+| `https://attestations.thomsonreuters.com/source-onboarding/v1` | `pkg/predicates/source-onboarding/v1`    |
+| `https://attestations.thomsonreuters.com/emergency-change/v1`  | `pkg/predicates/emergency-change/v1`     |
+| `https://slsa.dev/verification_summary/v1`                     | `pkg/predicates/verification-summary/v1` |
+
+Shared primitives (gitCommit digests, revision edges, control tiers, branch-protection snapshots and the statement builder/parser) live in `pkg/predicates/sourcecommon`.
+
+### Subject binding
+
+Every source-side statement has exactly one subject: the landed (post-merge) commit, as a digest set containing only `gitCommit` (lowercase hex SHA-1 or SHA-256). Each package exposes:
+
+- `NewStatement(sourcecommon.LandedCommit, *Predicate)` (`NewSourceStatement` for the VSA), which validates the predicate and binds the subject. The `source-provenance` builder fails with `sourcecommon.ErrSubjectNotLandedCommit` unless the subject equals `mergedRevision.digest.gitCommit`.
+- `ParseStatement([]byte)`, which checks `_type`, `predicateType` and the subject rule, then checks the raw predicate against the package's JSON schema, decodes it and validates it. Subject names are optional on parse, per in-toto v1. A parsed statement without subject names therefore fails `intoto.Statement.Validate`, which stamp applies only to statements it signs, so parsed statements are for verification, not re-signing. The VSA additionally offers `ParseStatement` for any subject (for example an image digest) and `ParseSourceStatement` for gitCommit subjects.
+- `Schema()`, which returns the reflected JSON schema. That schema is the single source of truth for required fields and unknown-field handling. It is enforced on the wire form by both the builder and the parser, so an absent required integer or boolean is rejected rather than decoded as `0` or `false`.
+
+### Top-level shape
+
+- `pr-review/v1`: `pullRequest`, `author`, `approvers`, `approvalCount` (equal to the number of approvers), `requiredApprovals` (live branch setting at merge), `requiredApprovers`, `codeownersSatisfied`, `createdAt`, `mergedAt`.
+- `source-provenance/v1`: `mergedRevision` (`ref`, `digest`), `mergeStrategy` (`merge`, `squash` or `rebase`), `reviewedParentRevisions` (one or two `uri` + `gitCommit` edges, never the landed commit itself: exactly one reviewed head, the PR `head.sha`, and at most one continuity parent, the prior tip of `mergedRevision.ref`. The continuity parent must carry the in-toto annotation `{"role": "continuity-parent"}` and its `uri` must end in `@` + `mergedRevision.ref`; an edge without annotations is the reviewed head. A continuity profile must fail closed when no continuity parent is present.), `pullRequest`, `mergedBy`, `mergedAt`, `actualApprovals`, `claimedRequiredApprovals` (genesis-anchored), `observedRequiredApprovals` (live), and optional `claimedTier` and `observedControls`. When `observedControls` is present, its `requiredApprovals` must equal `observedRequiredApprovals` (one merge-pinned snapshot). The resolver bridges on `predicate.reviewedParentRevisions`.
+- `source-onboarding/v1`: `repository`, `branch`, `onboardedAt`, `controls` (`requiredApprovals`, `requiresCodeownerReview`, `linearHistory`, `dismissStaleApprovals`, `restrictsForcePush`, `bypassActors`), `controlTier` (`tier1-protected`, `tier2` or `untiered`), `requiredApprovals` (the claimed bar, equal to `controls.requiredApprovals`), `continuity` (`from-this-revision-forward`), `reonboarding`, and `incident` (required only when re-onboarding).
+- `emergency-change/v1`: `incident`, `justification`, `authorizedBy`, `changeType` (`force-push`, `direct-push` or `expedited-hotfix`), `branch`, `expiresAt`, `postHocReviewDue`.
+- `verification_summary/v1`: the SLSA VSA fields `verifier`, `timeVerified`, `resourceUri`, `policy`, `inputAttestations`, `verificationResult` (`PASSED` or `FAILED`), `verifiedLevels`, `dependencyLevels`, `slsaVersion`. Source gates discriminate on `policy.uri`.
+
+### Spec reference
+
+- *GitHub Source Attestations: Verified Review and Promotion Chains* v1.0, sections 3.1-3.4 and 7.3.
+- [SLSA Verification Summary Attestation v1.0](https://slsa.dev/spec/v1.0/verification_summary)
+
+### Notes
+
+- JSON field names are camelCase, as set by the specification, unlike the snake_case convention used by the other custom predicates.
+- Unknown-field handling is **strict** for the four Thomson Reuters predicates: their schemas set `additionalProperties: false` and parsing rejects unknown fields. A misspelled field therefore fails instead of being silently dropped. Additive changes still stay within `v1`, but consumers must be upgraded before producers emit the new optional fields. The VSA is **lenient**: its schema allows additional properties because the predicate is defined upstream by SLSA.
+- These packages only build and validate statements. Producing, signing and evaluating them is outside their scope.
