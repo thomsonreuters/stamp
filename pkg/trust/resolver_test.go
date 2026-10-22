@@ -17,10 +17,24 @@ package trust
 import (
 	"testing"
 
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/thomsonreuters/stamp/pkg/config"
+	"github.com/thomsonreuters/stamp/pkg/config/flags"
 	"github.com/thomsonreuters/stamp/pkg/logger"
 )
+
+// newTestConfig returns a real config.ConfigurationIface backed by a fresh
+// viper. Callers set only the flags they care about; every other flag
+// returns the zero value from viper (empty string, 0, false).
+func newTestConfig(setup func(*viper.Viper)) config.ConfigurationIface {
+	v := viper.New()
+	if setup != nil {
+		setup(v)
+	}
+	return config.NewConfiguration(v)
+}
 
 func TestNewResolver_Dispatch(t *testing.T) {
 	tests := []struct {
@@ -177,5 +191,41 @@ func TestNewResolver_Precedence(t *testing.T) {
 		require.NoError(t, err)
 		_, ok := r.(*explicitResolver)
 		assert.True(t, ok)
+	})
+}
+
+// TestOptionsFromConfig_FulcioURL verifies that OptionsFromConfig leaves
+// FulcioURL empty unless the active signer is fulcio, so the non-empty
+// --fulcio-url default never makes Fulcio settings required for other
+// signers.
+func TestOptionsFromConfig_FulcioURL(t *testing.T) {
+	t.Run("signer key leaves FulcioURL empty even with the flag default present", func(t *testing.T) {
+		cfg := newTestConfig(func(v *viper.Viper) {
+			v.Set(flags.Signer, "key")
+			v.Set(flags.FulcioURL, flags.DefaultFulcioURL)
+		})
+		opts := OptionsFromConfig(cfg)
+		assert.Empty(t, opts.FulcioURL)
+	})
+
+	t.Run("signer fulcio keeps the configured FulcioURL", func(t *testing.T) {
+		cfg := newTestConfig(func(v *viper.Viper) {
+			v.Set(flags.Signer, "fulcio")
+			v.Set(flags.FulcioURL, flags.DefaultFulcioURL)
+		})
+		opts := OptionsFromConfig(cfg)
+		assert.Equal(t, flags.DefaultFulcioURL, opts.FulcioURL)
+	})
+
+	t.Run("signer key with explicit Rekor trust and no Fulcio cert chain succeeds", func(t *testing.T) {
+		cfg := newTestConfig(func(v *viper.Viper) {
+			v.Set(flags.Signer, "key")
+			v.Set(flags.FulcioURL, flags.DefaultFulcioURL)
+			v.Set(flags.RekorURL, "https://rekor.example.com")
+			v.Set(flags.RekorPublicKey, "/tmp/rekor.pub")
+		})
+		opts := OptionsFromConfig(cfg)
+		require.True(t, hasExplicitArtifact(opts), "RekorPublicKeyPath should route into explicit mode")
+		assert.NoError(t, validateExplicit(opts))
 	})
 }

@@ -23,6 +23,7 @@ import (
 	"github.com/thomsonreuters/stamp/pkg/config"
 	"github.com/thomsonreuters/stamp/pkg/config/flags"
 	"github.com/thomsonreuters/stamp/pkg/logger"
+	"github.com/thomsonreuters/stamp/pkg/types"
 )
 
 const envTUFRoot = "TUF_ROOT"
@@ -66,7 +67,7 @@ func OptionsFromConfig(cfg config.ConfigurationIface) Options {
 		TUFRootChecksum:     cfg.GetString(flags.TUFRootChecksum),
 		CachePath:           os.Getenv(envTUFRoot),
 		TrustedRootPath:     cfg.GetString(flags.TrustedRootPath),
-		FulcioURL:           cfg.GetString(flags.FulcioURL),
+		FulcioURL:           fulcioURLForSigner(cfg),
 		FulcioCertChainPath: cfg.GetString(flags.FulcioCertChain),
 		RekorURL:            cfg.GetString(flags.RekorURL),
 		RekorPublicKeyPath:  cfg.GetString(flags.RekorPublicKey),
@@ -76,6 +77,14 @@ func OptionsFromConfig(cfg config.ConfigurationIface) Options {
 		SigningConfigPath:   cfg.GetString(flags.SigningConfigPath),
 		Insecure:            cfg.GetBool(flags.Insecure),
 	}
+}
+
+// fulcioURLForSigner returns the Fulcio URL only if we're actually using Fulcio to sign.
+func fulcioURLForSigner(cfg config.ConfigurationIface) string {
+	if cfg.GetString(flags.Signer) != types.SignerFulcio.String() {
+		return ""
+	}
+	return cfg.GetString(flags.FulcioURL)
 }
 
 // ResolveTrustedRoot is a convenience wrapper that reads Options from cfg,
