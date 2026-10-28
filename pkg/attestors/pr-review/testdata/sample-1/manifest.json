@@ -1,0 +1,8 @@
+{
+  "mode": "post-hoc-github-api",
+  "collectedAt": "2026-03-03T08:00:00Z",
+  "repository": "example-org/example-service",
+  "pullRequest": 101,
+  "landedCommit": "3398f011cdab3283b2f280c1c58528641f1bab15",
+  "baseRef": "main"
+}
