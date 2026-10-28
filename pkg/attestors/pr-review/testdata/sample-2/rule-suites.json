@@ -1,0 +1,18 @@
+{
+  "available": true,
+  "suites": [
+    {
+      "id": 4000001,
+      "actor_id": 1004,
+      "actor_name": "dave-example",
+      "before_sha": "747f6fe0a28d853e8c1a532aab65d65ed751d1b6",
+      "after_sha": "f6077f498b57ce228dcb89f0410048ceb3691ddb",
+      "ref": "refs/heads/main",
+      "repository_id": 600000001,
+      "repository_name": "example-service",
+      "pushed_at": "2026-04-10T11:00:05Z",
+      "result": "pass",
+      "evaluation_result": "pass"
+    }
+  ]
+}

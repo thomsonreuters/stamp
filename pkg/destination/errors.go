@@ -80,8 +80,7 @@ func NewDestinationError(destType, operation string, err error, retryable bool) 
 // non-retryable as they indicate the operation should be abandoned.
 // Unknown error types are considered retryable by default for safety.
 func IsRetryable(err error) bool {
-	var destErr *DestinationError
-	if errors.As(err, &destErr) {
+	if destErr, ok := errors.AsType[*DestinationError](err); ok {
 		return destErr.Retryable
 	}
 
@@ -111,8 +110,7 @@ func WrapDestinationError(destType, operation string, err error) *DestinationErr
 	}
 
 	// Check if already a DestinationError
-	var destErr *DestinationError
-	if errors.As(err, &destErr) {
+	if destErr, ok := errors.AsType[*DestinationError](err); ok {
 		return &DestinationError{
 			Type:      destType,
 			Operation: operation,

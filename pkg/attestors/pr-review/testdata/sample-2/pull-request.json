@@ -1,0 +1,45 @@
+{
+  "url": "https://api.github.com/repos/example-org/example-service/pulls/202",
+  "id": 700000202,
+  "node_id": "PR_kwDOExample202",
+  "html_url": "https://github.com/example-org/example-service/pull/202",
+  "number": 202,
+  "state": "closed",
+  "title": "fix: correct retry backoff",
+  "user": {
+    "login": "carol-example",
+    "id": 1003,
+    "node_id": "U_kgDOExample1003",
+    "avatar_url": "https://avatars.example.com/u/1003",
+    "url": "https://api.github.com/users/carol-example",
+    "html_url": "https://github.com/carol-example",
+    "type": "User",
+    "site_admin": false
+  },
+  "body": "Example change used as a test fixture.",
+  "created_at": "2026-04-09T13:00:00Z",
+  "closed_at": "2026-04-10T11:00:00Z",
+  "merged_at": "2026-04-10T11:00:00Z",
+  "merge_commit_sha": "f6077f498b57ce228dcb89f0410048ceb3691ddb",
+  "head": {
+    "label": "example-org:feature/202",
+    "ref": "feature/202",
+    "sha": "36894c3dcaf9d234edf8ece827e6233e428a82e3"
+  },
+  "base": {
+    "label": "example-org:main",
+    "ref": "main",
+    "sha": "747f6fe0a28d853e8c1a532aab65d65ed751d1b6"
+  },
+  "merged": true,
+  "merged_by": {
+    "login": "dave-example",
+    "id": 1004,
+    "node_id": "U_kgDOExample1004",
+    "avatar_url": "https://avatars.example.com/u/1004",
+    "url": "https://api.github.com/users/dave-example",
+    "html_url": "https://github.com/dave-example",
+    "type": "User",
+    "site_admin": false
+  }
+}

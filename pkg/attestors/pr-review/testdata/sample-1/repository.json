@@ -1,0 +1,21 @@
+{
+  "id": 600000001,
+  "node_id": "R_kgDOExample01",
+  "name": "example-service",
+  "full_name": "example-org/example-service",
+  "private": false,
+  "owner": {
+    "login": "example-org",
+    "id": 5000001,
+    "node_id": "O_kgDOExample01",
+    "avatar_url": "https://avatars.example.com/u/5000001",
+    "url": "https://api.github.com/users/example-org",
+    "html_url": "https://github.com/example-org",
+    "type": "Organization",
+    "site_admin": false
+  },
+  "html_url": "https://github.com/example-org/example-service",
+  "url": "https://api.github.com/repos/example-org/example-service",
+  "default_branch": "main",
+  "visibility": "public"
+}
