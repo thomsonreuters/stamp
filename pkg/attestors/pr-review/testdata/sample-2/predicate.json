@@ -1,0 +1,170 @@
+{
+  "_type": "https://in-toto.io/Statement/v1",
+  "subject": [
+    {
+      "name": "https://github.com/example-org/example-service",
+      "digest": {
+        "gitCommit": "f6077f498b57ce228dcb89f0410048ceb3691ddb"
+      }
+    }
+  ],
+  "predicateType": "https://thomsonreuters.com/pr-review/v1",
+  "predicate": {
+    "repository": {
+      "id": 600000001,
+      "nodeId": "R_kgDOExample01",
+      "fullName": "example-org/example-service",
+      "defaultBranch": "main"
+    },
+    "pullRequest": {
+      "id": 700000202,
+      "nodeId": "PR_kwDOExample202",
+      "number": 202,
+      "url": "https://github.com/example-org/example-service/pull/202",
+      "requestor": {
+        "id": 1003,
+        "nodeId": "U_kgDOExample1003",
+        "login": "carol-example",
+        "type": "User"
+      },
+      "baseRef": "main",
+      "reviewedRevision": {
+        "gitCommit": "36894c3dcaf9d234edf8ece827e6233e428a82e3"
+      }
+    },
+    "landing": {
+      "revision": {
+        "gitCommit": "f6077f498b57ce228dcb89f0410048ceb3691ddb"
+      },
+      "parents": [
+        "747f6fe0a28d853e8c1a532aab65d65ed751d1b6",
+        "36894c3dcaf9d234edf8ece827e6233e428a82e3"
+      ],
+      "mergedAt": "2026-04-10T11:00:00Z",
+      "mergedBy": {
+        "id": 1004,
+        "nodeId": "U_kgDOExample1004",
+        "login": "dave-example",
+        "type": "User"
+      },
+      "mergeQueueUsed": false,
+      "commitSignature": {
+        "verified": true,
+        "reason": "valid",
+        "verifiedAt": "2026-04-10T11:00:01Z"
+      },
+      "method": "merge"
+    },
+    "reviewPolicy": {
+      "source": "github-ruleset",
+      "requirements": [
+        {
+          "rulesetId": 20001,
+          "rulesetName": "main-branch-protection",
+          "requiredApprovingReviewCount": 1,
+          "requireCodeOwnerReview": true,
+          "requireLastPushApproval": true,
+          "reviewers": [
+            {
+              "minimumApprovals": 1,
+              "team": {
+                "id": 3001,
+                "slug": "service-maintainers",
+                "name": "Service Maintainers"
+              }
+            },
+            {
+              "minimumApprovals": null,
+              "user": {
+                "id": 1003,
+                "nodeId": "U_kgDOExample1003",
+                "login": "carol-example",
+                "type": "User"
+              }
+            }
+          ]
+        },
+        {
+          "rulesetId": 20002,
+          "rulesetName": "audit-ruleset",
+          "requiredApprovingReviewCount": 1,
+          "requireCodeOwnerReview": false,
+          "requireLastPushApproval": false,
+          "reviewers": []
+        }
+      ],
+      "evaluation": {
+        "available": true,
+        "suites": [
+          {
+            "id": 4000001,
+            "actor_id": 1004,
+            "actor_name": "dave-example",
+            "before_sha": "747f6fe0a28d853e8c1a532aab65d65ed751d1b6",
+            "after_sha": "f6077f498b57ce228dcb89f0410048ceb3691ddb",
+            "ref": "refs/heads/main",
+            "repository_id": 600000001,
+            "repository_name": "example-service",
+            "pushed_at": "2026-04-10T11:00:05Z",
+            "result": "pass",
+            "evaluation_result": "pass"
+          }
+        ]
+      }
+    },
+    "reviews": [
+      {
+        "id": 9000011,
+        "nodeId": "PRR_kwDOExample9000011",
+        "url": "https://github.com/example-org/example-service/pull/202#pullrequestreview-9000011",
+        "reviewer": {
+          "id": 1002,
+          "nodeId": "U_kgDOExample1002",
+          "login": "bob-example",
+          "type": "User"
+        },
+        "state": "CHANGES_REQUESTED",
+        "submittedAt": "2026-04-09T16:00:00Z",
+        "reviewedRevision": {
+          "gitCommit": "062022501689b3eca7a338506e472eec6405094b"
+        }
+      },
+      {
+        "id": 9000012,
+        "nodeId": "PRR_kwDOExample9000012",
+        "url": "https://github.com/example-org/example-service/pull/202#pullrequestreview-9000012",
+        "reviewer": {
+          "id": 1004,
+          "nodeId": "U_kgDOExample1004",
+          "login": "dave-example",
+          "type": "User"
+        },
+        "state": "APPROVED",
+        "submittedAt": "2026-04-10T10:30:00Z",
+        "reviewedRevision": {
+          "gitCommit": "36894c3dcaf9d234edf8ece827e6233e428a82e3"
+        }
+      },
+      {
+        "id": 9000013,
+        "nodeId": "PRR_kwDOExample9000013",
+        "url": "https://github.com/example-org/example-service/pull/202#pullrequestreview-9000013",
+        "reviewer": {
+          "id": 1002,
+          "nodeId": "U_kgDOExample1002",
+          "login": "bob-example",
+          "type": "User"
+        },
+        "state": "APPROVED",
+        "submittedAt": "2026-04-10T10:30:00Z",
+        "reviewedRevision": {
+          "gitCommit": "36894c3dcaf9d234edf8ece827e6233e428a82e3"
+        }
+      }
+    ],
+    "collection": {
+      "mode": "post-hoc-github-api",
+      "collectedAt": "2026-04-11T08:00:00Z"
+    }
+  }
+}

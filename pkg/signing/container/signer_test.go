@@ -44,9 +44,7 @@ func TestSigner_Sign_InvalidOptions(t *testing.T) {
 func TestSigner_Sign_InvalidImageReference(t *testing.T) {
 	s := NewSigner(logger.NewNoop())
 	opts := Options{
-		Options: sigstore.Options{
-			Key: &sigstore.KeyOptions{Signer: newTestECDSAKey(t), Hint: []byte("id")},
-		},
+		Key:      &sigstore.KeyOptions{Signer: newTestECDSAKey(t), Hint: []byte("id")},
 		Registry: &RegistryOptions{Username: "user", Password: "pass"},
 	}
 	_, err := s.Sign(context.Background(), "://not a ref", opts)

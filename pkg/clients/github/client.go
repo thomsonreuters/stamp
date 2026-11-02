@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package github provides a client for interacting with GitHub Actions OIDC tokens.
+// Package github provides clients for GitHub Actions OIDC tokens and the read-only GitHub REST API.
 package github
 
 import (
