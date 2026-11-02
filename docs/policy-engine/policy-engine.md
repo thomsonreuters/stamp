@@ -187,11 +187,11 @@ Each mode establishes a different trust boundary with its caller:
 
 ### 3.4 What each mode is and is not for
 
-| Mode | Use it for | Do NOT use it for |
-|------|------------|-------------------|
-| CLI | Developer-loop policy authoring. CI/CD pipeline gates. Offline batch evaluation. Signing of result VSAs in pipelines. | Long-running services. Multi-tenant evaluation with shared credentials. Operations that require a stable identity for the caller. |
-| Central server | Organization-wide programmatic evaluation. Integrations with build platforms and IDE plugins. The egress point for credentialed external reads. Serving the K8s admission webhook. | Cluster-local enforcement decisions where round-trip latency to the central plane is unacceptable. Environments where the engine's availability cannot tolerate a network partition. |
-| K8s admission webhook | Cluster-admission gates: blocking workloads whose image digests fail the cluster's namespace profile | Pre-build evaluation. arbitrary REST integrations. Profile authoring or testing. |
+| Mode                  | Use it for                                                                                                                                                                         | Do NOT use it for                                                                                                                                                                    |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| CLI                   | Developer-loop policy authoring. CI/CD pipeline gates. Offline batch evaluation. Signing of result VSAs in pipelines.                                                              | Long-running services. Multi-tenant evaluation with shared credentials. Operations that require a stable identity for the caller.                                                    |
+| Central server        | Organization-wide programmatic evaluation. Integrations with build platforms and IDE plugins. The egress point for credentialed external reads. Serving the K8s admission webhook. | Cluster-local enforcement decisions where round-trip latency to the central plane is unacceptable. Environments where the engine's availability cannot tolerate a network partition. |
+| K8s admission webhook | Cluster-admission gates: blocking workloads whose image digests fail the cluster's namespace profile                                                                               | Pre-build evaluation. arbitrary REST integrations. Profile authoring or testing.                                                                                                     |
 
 The CLI and the server overlap in capability — both can evaluate any profile against any subject set. The webhook is structurally different: it does not run user-supplied requests. It interprets admission events and forwards them to the server.
 
@@ -449,12 +449,12 @@ This is a deliberate and load-bearing choice. The attestation graph is a hypergr
 
 A pre-build attestation cannot use the artefact's digest as its subject — the artefact does not yet exist. The `in-toto`/SLSA community has settled on a stage-based convention: each lifecycle stage anchors its attestations to the immutable identity of that stage's primary input or output. For software, this concretely takes the shape:
 
-| Lifecycle stage | Subject digest type | Example predicates |
-|-----------------|---------------------|--------------------|
+| Lifecycle stage    | Subject digest type        | Example predicates                                                           |
+| ------------------ | -------------------------- | ---------------------------------------------------------------------------- |
 | Source / pre-build | `gitCommit` (or `gitTree`) | Pull-request review, commit signing, source SAST/SCA, license scan on source |
-| Build | `sha256` (artefact digest) | SLSA Provenance, SBOM, build logs |
-| Post-build | `sha256` (artefact digest) | Container scan, image signing, VSA from a prior verifier |
-| Deployment | `sha256` (artefact digest) | Deployment attestation, environment-promotion record |
+| Build              | `sha256` (artefact digest) | SLSA Provenance, SBOM, build logs                                            |
+| Post-build         | `sha256` (artefact digest) | Container scan, image signing, VSA from a prior verifier                     |
+| Deployment         | `sha256` (artefact digest) | Deployment attestation, environment-promotion record                         |
 
 Source-stage attestations are subject-bound to the commit. Build-stage and later attestations are subject-bound to the artefact. The engine uses the subject digest type to determine which storage-backend index to query (in backends that distinguish them) and which graph hop to follow.
 
@@ -619,14 +619,14 @@ This section walks through the AI-model case to make the generalization concrete
 
 **Subject and lifecycle.** A trained AI model is an immutable artefact: a weights blob (`.pt`, ONNX, GGUF, …) or a model container, identified by its `sha256` digest. The lifecycle stages are different from a software build but structurally analogous:
 
-| Lifecycle stage (AI model) | Subject digest type | Example predicates |
-|----------------------------|---------------------|--------------------|
-| Pre-training (data prep) | `sha256` of dataset | Dataset license attestation, dataset-quality assertion, PII-scan result |
-| Pre-training (base model selection) | `sha256` of base model | Base-model card, prior verifier's VSA |
-| Pre-training (training code) | `gitCommit` of training repo | Pull-request review, source SAST, hyperparameter approval |
-| Training | `sha256` of model weights | Training-run provenance (SLSA Provenance v1 directly, or a specialized predicate of compatible shape) |
-| Post-training | `sha256` of model weights | Model card, evaluation/benchmark attestation, red-team report, safety-test result |
-| Deployment | `sha256` of model weights | Deployment record, environment-promotion attestation |
+| Lifecycle stage (AI model)          | Subject digest type          | Example predicates                                                                                    |
+| ----------------------------------- | ---------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Pre-training (data prep)            | `sha256` of dataset          | Dataset license attestation, dataset-quality assertion, PII-scan result                               |
+| Pre-training (base model selection) | `sha256` of base model       | Base-model card, prior verifier's VSA                                                                 |
+| Pre-training (training code)        | `gitCommit` of training repo | Pull-request review, source SAST, hyperparameter approval                                             |
+| Training                            | `sha256` of model weights    | Training-run provenance (SLSA Provenance v1 directly, or a specialized predicate of compatible shape) |
+| Post-training                       | `sha256` of model weights    | Model card, evaluation/benchmark attestation, red-team report, safety-test result                     |
+| Deployment                          | `sha256` of model weights    | Deployment record, environment-promotion attestation                                                  |
 
 Source-side digests span multiple algorithms: the dataset is a `sha256`, the base model is a `sha256`, the training config blob is a `sha256`, only the training code is a `gitCommit`. The graph walker handles this uniformly — Phase B walks every digest in `resolvedDependencies`, and Phase C issues a `Get(SubjectKey)` for each, regardless of algorithm.
 
@@ -903,11 +903,11 @@ Overall verdict computation: `FAIL` if any `enforcement: error` policy is `FAIL`
 
 ### 6.9 Timeouts and resource limits
 
-| Mode | Per-policy timeout | Overall timeout | Memory budget |
-|------|---------------------|-----------------|---------------|
-| CLI | 5 s | 30 s | 256 MB |
-| Server | 5 s | 30 s | 1 GB |
-| K8s webhook | 5 s | 10 s | 512 MB |
+| Mode        | Per-policy timeout | Overall timeout | Memory budget |
+| ----------- | ------------------ | --------------- | ------------- |
+| CLI         | 5 s                | 30 s            | 256 MB        |
+| Server      | 5 s                | 30 s            | 1 GB          |
+| K8s webhook | 5 s                | 10 s            | 512 MB        |
 
 Per-policy timeout treats the policy as `ERROR` on expiry; enforcement from metadata determines effect. Overall timeout cancels in-flight policies and marks them `NOT_EVALUATED`; aggregation runs on what completed and the verdict is `FAIL` (fail-closed). Operators MAY tune these via configuration; environments SHOULD NOT.
 
@@ -1083,13 +1083,13 @@ The layout is not ornamental. Each first-level directory under `policies/global/
 
 The default approval rules:
 
-| Scope | Approval requirement |
-|-------|----------------------|
-| `policies/global/platform/*` | Two platform engineering approvers |
-| `policies/global/<other-domain>/*` | One domain-team approver + one security approver |
-| `policies/<owner-id>/*` | One team approver + one peer reviewer |
-| `helpers/*` | Two platform-security approvers (helpers are dependencies of many policies) |
-| `data/*` | Two platform-security approvers |
+| Scope                              | Approval requirement                                                        |
+| ---------------------------------- | --------------------------------------------------------------------------- |
+| `policies/global/platform/*`       | Two platform engineering approvers                                          |
+| `policies/global/<other-domain>/*` | One domain-team approver + one security approver                            |
+| `policies/<owner-id>/*`            | One team approver + one peer reviewer                                       |
+| `helpers/*`                        | Two platform-security approvers (helpers are dependencies of many policies) |
+| `data/*`                           | Two platform-security approvers                                             |
 
 These are CODEOWNERS rules, enforced at PR review by the source repository's branch protection. The engine does not evaluate or verify them; that is the SCM's job. The engine inherits whatever the SCM enforced at merge time.
 
