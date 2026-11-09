@@ -91,7 +91,7 @@ func TestPredicate_RoundTrip_SCA(t *testing.T) {
 		},
 		Inventory: &Inventory{
 			Format: "cyclonedx-json",
-			Digest: &Digest{SHA256: "deadbeef"},
+			Digest: Digest{"sha256": "deadbeef", "sha512": "aabbccdd"},
 		},
 		Findings: []Finding{
 			{
@@ -117,7 +117,7 @@ func TestPredicate_RoundTrip_SCA(t *testing.T) {
 		RawReport: &Artifact{
 			MediaType: "application/json",
 			URI:       "s3://bucket/report.json",
-			Digest:    &Digest{SHA256: "cafebabe"},
+			Digest:    Digest{"sha256": "cafebabe"},
 		},
 	}
 

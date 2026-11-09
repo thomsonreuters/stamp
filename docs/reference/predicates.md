@@ -337,6 +337,8 @@ The second expression requires no severity-`1` findings; `bySeverity` contains o
 
 The predicate is a stable, vendor-neutral projection of scanner output. The scan-result attestor builds it from normalized input or supported native scanner output; producers of normalized input map their scanner output to that input schema. The predicate includes an optional per-finding `extensions` field for scanner-specific metadata.
 
+Digest fields are algorithm-keyed maps (for example, `sha256` or `sha512`); scan-result v1 currently emits only `sha256`, but is a map to maintain the same shape as other predicate types.
+
 ### Input formats
 
 The `scan-result` attestor produces this predicate from the input formats below, selected by its `input-format` configuration. Callers do not supply the predicate directly.

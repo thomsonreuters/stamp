@@ -392,11 +392,11 @@ func locationOrNil(f NormalizedFinding) *scanpredicate.Location {
 	}
 }
 
-func digestOrNil(sha256hex string) *scanpredicate.Digest {
+func digestOrNil(sha256hex string) scanpredicate.Digest {
 	if sha256hex == "" {
 		return nil
 	}
-	return &scanpredicate.Digest{SHA256: sha256hex}
+	return scanpredicate.Digest{"sha256": sha256hex}
 }
 
 // splitPackage splits a "name@version" package identity. A missing version yields

@@ -212,14 +212,14 @@ func (a *Attestor) deriveSubject() intoto.Subject {
 	if a.predicate.ScanClass == scanpredicate.ScanClassSCA &&
 		a.predicate.Inventory != nil &&
 		a.predicate.Inventory.Digest != nil &&
-		a.predicate.Inventory.Digest.SHA256 != "" {
+		a.predicate.Inventory.Digest["sha256"] != "" {
 		name := a.config.SubjectName
 		if name == "" {
 			name = "sbom+scan-result"
 		}
 		return intoto.Subject{
 			Name:   name,
-			Digest: map[string]string{"sha256": a.predicate.Inventory.Digest.SHA256},
+			Digest: map[string]string{"sha256": a.predicate.Inventory.Digest["sha256"]},
 		}
 	}
 
@@ -239,8 +239,8 @@ func (a *Attestor) validatePredicate() error {
 	if a.predicate.ScanClass == scanpredicate.ScanClassSCA &&
 		a.predicate.Inventory != nil &&
 		a.predicate.Inventory.Digest != nil &&
-		a.predicate.Inventory.Digest.SHA256 != "" &&
-		!isValidSHA256(a.predicate.Inventory.Digest.SHA256) {
+		a.predicate.Inventory.Digest["sha256"] != "" &&
+		!isValidSHA256(a.predicate.Inventory.Digest["sha256"]) {
 		return pkgerrors.NewWithContext(id, "collect",
 			"inventory.digest.sha256 must be a 64-character lowercase hex SHA-256 digest")
 	}

@@ -109,10 +109,10 @@ func TestNormalizedLoader_SCA(t *testing.T) {
 
 	assert.Equal(t, scanpredicate.ScanClassSCA, pred.ScanClass)
 	require.NotNil(t, pred.Inventory)
-	assert.Equal(t, "deadbeef", pred.Inventory.Digest.SHA256)
+	assert.Equal(t, "deadbeef", pred.Inventory.Digest["sha256"])
 	assert.Equal(t, 5, pred.Inventory.ComponentsScanned)
 	require.NotNil(t, pred.RawReport)
-	assert.Equal(t, "cafebabe", pred.RawReport.Digest.SHA256)
+	assert.Equal(t, "cafebabe", pred.RawReport.Digest["sha256"])
 
 	require.Len(t, pred.Findings, 1)
 	f := pred.Findings[0]

@@ -101,30 +101,28 @@ type Scanner struct {
 	Name          string         `json:"name"`
 	Vendor        string         `json:"vendor,omitempty"`
 	Version       string         `json:"version,omitempty"`
-	Hash          *Digest        `json:"hash,omitempty"`
+	Hash          Digest         `json:"hash,omitempty"`
 	Configuration map[string]any `json:"configuration,omitempty"`
 	Database      *ScannerDB     `json:"database,omitempty"`
 }
 
 // ScannerDB captures the vulnerability/advisory database snapshot used (SCA).
 type ScannerDB struct {
-	Name    string  `json:"name,omitempty"`
-	Version string  `json:"version,omitempty"`
-	Digest  *Digest `json:"digest,omitempty"`
+	Name    string `json:"name,omitempty"`
+	Version string `json:"version,omitempty"`
+	Digest  Digest `json:"digest,omitempty"`
 }
 
-// Digest is a content digest set. Only sha256 is carried in v1.
-type Digest struct {
-	SHA256 string `json:"sha256,omitempty"`
-}
+// Digest maps algorithm names to hex-encoded content digests. v1 currently emits sha256.
+type Digest map[string]string
 
 // Inventory describes the SBOM or manifest set that an SCA scan analyzed.
 type Inventory struct {
-	Format            string  `json:"format,omitempty"`
-	URI               string  `json:"uri,omitempty"`
-	Digest            *Digest `json:"digest,omitempty"`
-	Completeness      string  `json:"completeness,omitempty"`
-	ComponentsScanned int     `json:"componentsScanned,omitempty"`
+	Format            string `json:"format,omitempty"`
+	URI               string `json:"uri,omitempty"`
+	Digest            Digest `json:"digest,omitempty"`
+	Completeness      string `json:"completeness,omitempty"`
+	ComponentsScanned int    `json:"componentsScanned,omitempty"`
 }
 
 // Finding unifies SAST and SCA findings. SAST findings populate Rule/Weakness/
@@ -253,7 +251,7 @@ type PolicyRule struct {
 
 // Artifact references an out-of-band object by URI and digest.
 type Artifact struct {
-	MediaType string  `json:"mediaType,omitempty"`
-	URI       string  `json:"uri,omitempty"`
-	Digest    *Digest `json:"digest,omitempty"`
+	MediaType string `json:"mediaType,omitempty"`
+	URI       string `json:"uri,omitempty"`
+	Digest    Digest `json:"digest,omitempty"`
 }
