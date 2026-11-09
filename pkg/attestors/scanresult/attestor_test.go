@@ -313,8 +313,8 @@ func TestAttest_HappyPathPasses(t *testing.T) {
 	require.NoError(t, a.Attest(context.Background(), cfg))
 }
 
-func TestAttest_InvalidScanClassFails(t *testing.T) {
-	// Without a scan-class the attestor cannot project findings and must fail.
+func TestAttest_MissingScanClassRejectedByLoader(t *testing.T) {
+	// The loader cannot project findings without a scan-class.
 	path := writeReport(t, sastInput())
 
 	a := newTestAttestor()

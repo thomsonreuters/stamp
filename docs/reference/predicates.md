@@ -326,7 +326,7 @@ The wrapping predicate is project-specific; the embedded `content` is the upstre
 
 ### Spec reference
 
-The predicate is a stable, vendor-neutral projection of a scanner's output. Producers map native results onto these types rather than emitting raw scanner dumps; unmapped scanner-native fields land in a per-finding `extensions` object.
+The predicate is a stable, vendor-neutral projection of scanner output. The scan-result attestor builds it from normalized input or supported native scanner output; producers of normalized input map their scanner output to that input schema. The predicate includes an optional per-finding `extensions` field for scanner-specific metadata.
 
 ### Input formats
 

@@ -19,7 +19,7 @@ This reference focuses on what `--show-config` does not tell you: which subjects
 | `go-builder`      | `https://slsa.dev/provenance/v1`                             | SLSA v1 provenance for a Go binary built from a `.slsa-goreleaser.yml` specification                                             |
 | `jwt`             | `https://witness.dev/attestations/jwt/v0.1`                  | A JWT token's header, claims, and signature-verification result                                                                  |
 | `sbom`            | `https://github.com/thomsonreuters/stamp/sbom/v1`            | A CycloneDX or SPDX SBOM document, with optional schema validation                                                               |
-| `scan-result`     | `https://github.com/thomsonreuters/stamp/scan-result/v1`     | Normalized SAST or SCA security scan findings, ingested from a predicate, normalized findings document, or native scanner output |
+| `scan-result`     | `https://github.com/thomsonreuters/stamp/scan-result/v1`     | SAST or SCA security scan findings built from normalized input or supported native scanner output                                |
 | `ec2`             | `https://github.com/thomsonreuters/stamp/ec2/v1`             | AWS EC2 runtime environment metadata collected from IMDS                                                                         |
 
 ---
@@ -314,7 +314,7 @@ A single subject for the SBOM file itself:
 
 ### Purpose
 
-Attests normalized SAST (static analysis) or SCA (dependency/vulnerability) security scan findings. A single predicate type carries both classes, discriminated by the `scanClass` field. The attestor owns input handling: it turns a vendor-neutral normalized findings document or a supported scanner's native output into the signed predicate, so a standalone `stamp` CLI can attest scanner output without an external normalizer. Callers never author the predicate directly.
+Attests normalized SAST (static analysis) or SCA (dependency/vulnerability) security scan findings. A single predicate type represents both classes, and its `scanClass` field identifies the emitted finding set. The required `scan-class` configuration selects that class. The attestor owns input handling: it turns a vendor-neutral normalized findings document or a supported scanner's native output into the signed predicate, so a standalone `stamp` CLI can attest scanner output without an external normalizer. Callers never author the predicate directly.
 
 ### Predicate URI
 

@@ -12,12 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package scanresult provides an attestor for normalized SAST and SCA security
-// scan results. It is deliberately vendor-agnostic: the producer (for example
-// SecPipe) normalizes a scanner's native output into the scan-result predicate
-// schema and writes it to a JSON file; this attestor ingests that file, binds it
-// to a subject, and emits the in-toto statement. A single attestor handles both
-// scan classes, discriminated by the predicate's ScanClass field.
+// Package scanresult provides an attestor for SAST and SCA security scan results.
+// It uses a loader selected by input-format to build a scan-result predicate from
+// a normalized document or supported native scanner output. The required
+// scan-class configuration selects which findings the predicate includes. The
+// attestor binds the predicate to a subject and emits the in-toto statement.
 package scanresult
 
 import (
@@ -56,7 +55,7 @@ type Config struct {
 	SubjectDigest string `json:"subject-digest"`
 }
 
-// Attestor implements core.Attestor for normalized scan-result ingestion.
+// Attestor implements core.Attestor for loader-based scan-result ingestion.
 type Attestor struct {
 	logger logger.Logger
 	hasher hash.Hasher
