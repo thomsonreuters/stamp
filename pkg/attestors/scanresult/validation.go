@@ -38,11 +38,9 @@ func (a *Attestor) ValidateConfig(config core.Config) error {
 			"report-path must be a non-empty string pointing to a scan report file")
 	}
 
-	absPath, err := filepath.Abs(a.config.ReportPath)
-	if err != nil {
-		return pkgerrors.WrapWithContext(err, id, "validate", "failed to get absolute path for report file")
+	if err := a.resolveReportPath("validate", "failed to get absolute path for report file"); err != nil {
+		return err
 	}
-	a.reportPath = absPath
 
 	fileInfo, err := os.Stat(a.reportPath)
 	if err != nil {
@@ -74,11 +72,27 @@ func (a *Attestor) ValidateConfig(config core.Config) error {
 			fmt.Sprintf("input-format must be one of %v, got '%s'", loaders.Formats(), a.config.InputFormat))
 	}
 
-	if a.config.SubjectDigest != "" && !isValidSHA256(a.config.SubjectDigest) {
-		return pkgerrors.NewWithContext(id, "validate",
-			"subject-digest must be a 64-character lowercase hex SHA-256 digest")
+	if err := validateSubjectDigest(a.config.SubjectDigest, "validate"); err != nil {
+		return err
 	}
 
+	return nil
+}
+
+func (a *Attestor) resolveReportPath(operation, errorMessage string) error {
+	absPath, err := filepath.Abs(a.config.ReportPath)
+	if err != nil {
+		return pkgerrors.WrapWithContext(err, id, operation, errorMessage)
+	}
+	a.reportPath = absPath
+	return nil
+}
+
+func validateSubjectDigest(digest, operation string) error {
+	if digest != "" && !isValidSHA256(digest) {
+		return pkgerrors.NewWithContext(id, operation,
+			"subject-digest must be a 64-character lowercase hex SHA-256 digest")
+	}
 	return nil
 }
 

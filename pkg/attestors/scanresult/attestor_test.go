@@ -115,6 +115,28 @@ func TestIdentity(t *testing.T) {
 	assert.NotEmpty(t, a.Description())
 }
 
+func TestIsValidSHA256(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		valid bool
+	}{
+		{name: "valid digest", input: validSHA256, valid: true},
+		{name: "valid alternate digest", input: validSHA256Alt, valid: true},
+		{name: "empty", input: "", valid: false},
+		{name: "too short", input: validSHA256[:63], valid: false},
+		{name: "too long", input: validSHA256 + "0", valid: false},
+		{name: "uppercase", input: "E" + validSHA256[1:], valid: false},
+		{name: "non-hex character", input: "g" + validSHA256[1:], valid: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.valid, isValidSHA256(tt.input))
+		})
+	}
+}
+
 func TestValidateConfig(t *testing.T) {
 	path := writeReport(t, sastInput())
 	a := newTestAttestor()

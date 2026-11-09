@@ -24,7 +24,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/invopop/jsonschema"
@@ -136,12 +135,9 @@ func (a *Attestor) PreAttest(ctx context.Context, config core.Config) error {
 
 	a.parseConfig(config)
 
-	absPath, err := filepath.Abs(a.config.ReportPath)
-	if err != nil {
-		return pkgerrors.WrapWithContext(err, id, "pre-attest",
-			"failed to resolve report path to absolute path")
+	if err := a.resolveReportPath("pre-attest", "failed to resolve report path to absolute path"); err != nil {
+		return err
 	}
-	a.reportPath = absPath
 
 	a.logger.InfoContext(ctx, "scan-result attestor pre-attestation setup completed",
 		"report_path", a.reportPath,
@@ -242,9 +238,8 @@ func (a *Attestor) deriveSubject() intoto.Subject {
 // validatePredicate fails closed on a structurally invalid or self-inconsistent
 // report before any part of it is hashed and signed.
 func (a *Attestor) validatePredicate() error {
-	if a.config.SubjectDigest != "" && !isValidSHA256(a.config.SubjectDigest) {
-		return pkgerrors.NewWithContext(id, "collect",
-			"subject-digest must be a 64-character lowercase hex SHA-256 digest")
+	if err := validateSubjectDigest(a.config.SubjectDigest, "collect"); err != nil {
+		return err
 	}
 
 	if a.predicate.ScanClass == scanpredicate.ScanClassSCA &&
