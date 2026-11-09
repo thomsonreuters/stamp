@@ -324,6 +324,15 @@ The wrapping predicate is project-specific; the embedded `content` is the upstre
 - `policy` (optional): a recorded CI gate decision.
 - `rawReport` (optional): the full scanner report referenced out-of-band by `uri` + `digest`.
 
+The summary aggregates are intended for Rego policies, so common checks can use counts directly instead of recounting findings. For example:
+
+```rego
+input.predicate.summary.findings < 10
+object.get(input.predicate.summary.bySeverity, "1", 0) == 0
+```
+
+The second expression requires no severity-`1` findings; `bySeverity` contains only observed, lowercase severity keys, so use a default of `0` when checking for absence.
+
 ### Spec reference
 
 The predicate is a stable, vendor-neutral projection of scanner output. The scan-result attestor builds it from normalized input or supported native scanner output; producers of normalized input map their scanner output to that input schema. The predicate includes an optional per-finding `extensions` field for scanner-specific metadata.
@@ -337,6 +346,6 @@ The `scan-result` attestor produces this predicate from the input formats below,
 
 ### Notes
 
-- SAST and SCA scans for the same artifact are emitted as separate attestations that share a subject digest and correlation context, letting a verifier assert both classes cover the same artifact.
+- Separate SAST and SCA attestations can be associated with the same artifact when both are configured with the same subject-digest, letting a verifier assert both classes cover the same artifact.
 - Severity and CVSS are kept distinct: `finding.severity` is the scanner-normalized rating, while `vulnerability.cvss[]` carries structured vectors/scores with their source.
 - Missing data (fix versions, exploitability, CVSS) is omitted rather than fabricated. Suppression/VEX fields are intentionally absent in v1 and may be added additively later.
