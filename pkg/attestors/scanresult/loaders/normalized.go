@@ -63,12 +63,13 @@ type NormalizedScan struct {
 	FinishedOn string `json:"finishedOn,omitempty"`
 }
 
-// NormalizedInventory describes the SBOM/manifest an SCA scan analyzed.
+// NormalizedInventory describes the SBOM/manifest and component count an SCA scan analyzed.
 type NormalizedInventory struct {
-	Format       string `json:"format,omitempty"`
-	URI          string `json:"uri,omitempty"`
-	Digest       string `json:"digest,omitempty"`
-	Completeness string `json:"completeness,omitempty"`
+	Format            string `json:"format,omitempty"`
+	URI               string `json:"uri,omitempty"`
+	Digest            string `json:"digest,omitempty"`
+	Completeness      string `json:"completeness,omitempty"`
+	ComponentsScanned int    `json:"componentsScanned,omitempty"`
 }
 
 // NormalizedArtifact references an out-of-band object by URI and digest.
@@ -166,12 +167,14 @@ func normalize(class scanpredicate.ScanClass, input NormalizedInput) (scanpredic
 		Findings: []scanpredicate.Finding{},
 	}
 
-	if class == scanpredicate.ScanClassSCA && input.Inventory != nil && input.Inventory.Digest != "" {
+	if class == scanpredicate.ScanClassSCA && input.Inventory != nil &&
+		(input.Inventory.Digest != "" || input.Inventory.ComponentsScanned > 0) {
 		pred.Inventory = &scanpredicate.Inventory{
-			Format:       input.Inventory.Format,
-			URI:          input.Inventory.URI,
-			Completeness: input.Inventory.Completeness,
-			Digest:       &scanpredicate.Digest{SHA256: input.Inventory.Digest},
+			Format:            input.Inventory.Format,
+			URI:               input.Inventory.URI,
+			Completeness:      input.Inventory.Completeness,
+			ComponentsScanned: input.Inventory.ComponentsScanned,
+			Digest:            digestOrNil(input.Inventory.Digest),
 		}
 	}
 

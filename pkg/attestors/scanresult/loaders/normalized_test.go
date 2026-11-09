@@ -97,7 +97,11 @@ func TestNormalizedLoader_SAST(t *testing.T) {
 
 func TestNormalizedLoader_SCA(t *testing.T) {
 	in := sampleInput()
-	in.Inventory = &NormalizedInventory{Format: "cyclonedx-json", Digest: "deadbeef"}
+	in.Inventory = &NormalizedInventory{
+		Format:            "cyclonedx-json",
+		Digest:            "deadbeef",
+		ComponentsScanned: 5,
+	}
 	in.RawReport = &NormalizedArtifact{URI: "s3://bucket/report.json", Digest: "cafebabe"}
 
 	pred, err := normalizedLoader{}.Load(marshalInput(t, in), Options{ScanClass: scanpredicate.ScanClassSCA})
@@ -106,6 +110,7 @@ func TestNormalizedLoader_SCA(t *testing.T) {
 	assert.Equal(t, scanpredicate.ScanClassSCA, pred.ScanClass)
 	require.NotNil(t, pred.Inventory)
 	assert.Equal(t, "deadbeef", pred.Inventory.Digest.SHA256)
+	assert.Equal(t, 5, pred.Inventory.ComponentsScanned)
 	require.NotNil(t, pred.RawReport)
 	assert.Equal(t, "cafebabe", pred.RawReport.Digest.SHA256)
 

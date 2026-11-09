@@ -256,6 +256,23 @@ func TestAttest_RejectsInvalidInventoryDigest(t *testing.T) {
 	require.Error(t, a.Attest(context.Background(), cfg))
 }
 
+func TestAttest_RejectsSummaryComponentsExceedingInventoryCount(t *testing.T) {
+	in := scaInput()
+	in.Findings = []loaders.NormalizedFinding{
+		{ScanType: "vulnerability", PackageName: "lodash@4.17.21", Ecosystem: "npm"},
+		{ScanType: "vulnerability", PackageName: "express@4.18.2", Ecosystem: "npm"},
+	}
+	in.Inventory = &loaders.NormalizedInventory{ComponentsScanned: 1}
+	path := writeReport(t, in)
+
+	a := newTestAttestor()
+	cfg := core.Config{keyReportPath: path, keyScanClass: "sca"}
+	require.NoError(t, a.PreAttest(context.Background(), cfg))
+	err := a.Attest(context.Background(), cfg)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "summary.components (2) exceeds inventory.componentsScanned (1)")
+}
+
 // Item 1: ValidateConfig rejects a malformed --subject-digest up front.
 func TestValidateConfig_RejectsInvalidSubjectDigest(t *testing.T) {
 	path := writeReport(t, sastInput())

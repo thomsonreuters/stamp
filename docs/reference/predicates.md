@@ -318,7 +318,7 @@ The wrapping predicate is project-specific; the embedded `content` is the upstre
 - `scanClass`: `sast` or `sca`; discriminates the finding set.
 - `scan`: execution metadata (`id`, `status`, `startedOn`, `finishedOn`, `scope`).
 - `scanner`: the producing tool (`name`, `vendor`, `version`, optional binary/advisory-DB digests).
-- `inventory` (SCA): the SBOM or manifest analyzed, referenced by `uri` + `digest`.
+- `inventory` (SCA): the SBOM or manifest analyzed, referenced by `uri` + `digest`, with optional `componentsScanned` count.
 - `findings`: unified findings. SAST findings carry `rule`/`weakness`/`location`; SCA findings carry `component` (PURL-first) and `vulnerability` (CVE/GHSA, CVSS, EPSS, CISA KEV). Both may carry SCM `source` context and an `extensions` escape hatch.
 - `summary`: finding counts (`findings`, `components`, `bySeverity`) for cheap policy evaluation.
 - `policy` (optional): a recorded CI gate decision.
