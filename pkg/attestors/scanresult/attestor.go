@@ -171,11 +171,6 @@ func (a *Attestor) Attest(ctx context.Context, config core.Config) error {
 		return pkgerrors.WrapWithContext(err, id, "collect", "failed to load scan-result input")
 	}
 
-	if !a.predicate.ScanClass.IsValid() {
-		return pkgerrors.NewWithContext(id, "collect",
-			fmt.Sprintf("scan class must be 'sast' or 'sca', got '%s'", a.predicate.ScanClass))
-	}
-
 	if a.predicate.SchemaVersion == "" {
 		a.predicate.SchemaVersion = scanpredicate.SchemaVersion
 	}
@@ -290,10 +285,6 @@ func (a *Attestor) PostAttest(ctx context.Context, config core.Config) error {
 
 // GeneratePredicate returns the ingested scan-result predicate.
 func (a *Attestor) GeneratePredicate(config core.Config) (any, error) {
-	if !a.predicate.ScanClass.IsValid() {
-		return nil, pkgerrors.NewWithContext(id, "generate",
-			"cannot generate predicate before a valid report has been collected")
-	}
 	return a.predicate, nil
 }
 
