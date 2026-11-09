@@ -359,6 +359,10 @@ func TestSchema_MarksRequiredFields(t *testing.T) {
 	for _, field := range []string{"schemaVersion", "scanClass", "scan", "scanner", "findings", "summary"} {
 		assert.Contains(t, def.Required, field, "field %q must be marked required", field)
 	}
+
+	scanDef, ok := schema.Definitions["Scan"]
+	require.True(t, ok, "Scan definition must be present in schema")
+	assert.Contains(t, scanDef.Required, "status", "status must be marked required")
 }
 
 // Native scanner output is ingested through a loader and projected onto the

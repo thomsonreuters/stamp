@@ -90,7 +90,7 @@ type Predicate struct {
 // Scan holds metadata about a single scan execution.
 type Scan struct {
 	ID         string     `json:"id,omitempty"`
-	Status     ScanStatus `json:"status"`
+	Status     ScanStatus `json:"status"               jsonschema:"required"`
 	StartedOn  string     `json:"startedOn,omitempty"`
 	FinishedOn string     `json:"finishedOn,omitempty"`
 	Scope      string     `json:"scope,omitempty"`

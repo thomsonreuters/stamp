@@ -133,6 +133,44 @@ func TestNormalizedLoader_SCA(t *testing.T) {
 	assert.Equal(t, 1, pred.Summary.BySeverity["critical"])
 }
 
+func TestNormalizedLoader_RejectsMismatchedScanClass(t *testing.T) {
+	tests := []struct {
+		name      string
+		finding   NormalizedFinding
+		scanClass scanpredicate.ScanClass
+	}{
+		{
+			name:      "SAST findings with SCA selected",
+			finding:   sampleInput().Findings[0],
+			scanClass: scanpredicate.ScanClassSCA,
+		},
+		{
+			name:      "SCA findings with SAST selected",
+			finding:   sampleInput().Findings[1],
+			scanClass: scanpredicate.ScanClassSAST,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			in := sampleInput()
+			in.Findings = []NormalizedFinding{tt.finding}
+			_, err := normalizedLoader{}.Load(marshalInput(t, in), Options{ScanClass: tt.scanClass})
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "none match scan-class")
+		})
+	}
+}
+
+func TestNormalizedLoader_AllowsEmptyFindings(t *testing.T) {
+	in := sampleInput()
+	in.Findings = nil
+
+	pred, err := normalizedLoader{}.Load(marshalInput(t, in), Options{ScanClass: scanpredicate.ScanClassSCA})
+	require.NoError(t, err)
+	assert.Empty(t, pred.Findings)
+}
+
 func TestNormalizedLoader_NoEcosystemOmitsPURL(t *testing.T) {
 	in := sampleInput()
 	in.Findings[1].Ecosystem = ""

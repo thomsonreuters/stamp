@@ -335,6 +335,7 @@ A single subject binding the attestation to what was scanned. Precedence:
   - `normalized` (default) — stamp's vendor-neutral normalized findings document. Producers map their scanner output onto this stable schema; stamp projects it onto the predicate (class discrimination, PURL emission, summary aggregation). Fails closed on unknown fields.
   - `snyk` — native Snyk output. `snyk test --json` for SCA; the SARIF from `snyk code test --sarif` for SAST. This is the reference loader for out-of-the-box use.
 - `scan-class` (`sast` or `sca`) is required. Every input format can carry findings for multiple classes, so it selects which findings are attested.
+- A normalized report with findings must contain at least one record matching `scan-class`; an empty findings list is accepted as a clean scan.
 - For normalized SCA input, a positive `inventory.componentsScanned` records how many components were analyzed. It is included in the predicate inventory and checked against the number of components with findings; zero means the count is unavailable.
 - All externally supplied digests are validated as 64-character lowercase hex SHA-256 before being bound as the subject.
 

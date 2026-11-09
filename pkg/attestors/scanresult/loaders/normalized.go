@@ -211,6 +211,10 @@ func normalize(class scanpredicate.ScanClass, input NormalizedInput) (scanpredic
 			components[comp] = struct{}{}
 		}
 	}
+	if len(input.Findings) > 0 && len(pred.Findings) == 0 {
+		return scanpredicate.Predicate{}, fmt.Errorf(
+			"report contains %d findings, but none match scan-class %q", len(input.Findings), class)
+	}
 
 	pred.Summary = scanpredicate.Summary{
 		Findings:   len(pred.Findings),
