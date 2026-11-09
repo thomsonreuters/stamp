@@ -87,6 +87,19 @@ type Predicate struct {
 	RawReport     *Artifact     `json:"rawReport,omitempty"`
 }
 
+// InventoryDigest returns a non-empty inventory digest for the requested algorithm
+// when this predicate represents an SCA scan.
+func (p Predicate) InventoryDigest(algorithm string) (string, bool) {
+	if p.ScanClass != ScanClassSCA || p.Inventory == nil {
+		return "", false
+	}
+	digest, ok := p.Inventory.Digest[algorithm]
+	if !ok || digest == "" {
+		return "", false
+	}
+	return digest, true
+}
+
 // Scan holds metadata about a single scan execution.
 type Scan struct {
 	ID         string     `json:"id,omitempty"`

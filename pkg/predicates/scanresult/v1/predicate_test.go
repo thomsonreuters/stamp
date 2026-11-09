@@ -46,6 +46,58 @@ func TestScanClass_IsValid(t *testing.T) {
 	}
 }
 
+func TestPredicate_InventoryDigest(t *testing.T) {
+	tests := []struct {
+		name      string
+		predicate Predicate
+		want      string
+		wantOK    bool
+	}{
+		{
+			name: "present digest",
+			predicate: Predicate{
+				ScanClass: ScanClassSCA,
+				Inventory: &Inventory{Digest: Digest{"sha256": "digest-value"}},
+			},
+			want:   "digest-value",
+			wantOK: true,
+		},
+		{
+			name: "missing algorithm",
+			predicate: Predicate{
+				ScanClass: ScanClassSCA,
+				Inventory: &Inventory{Digest: Digest{"sha512": "digest-value"}},
+			},
+		},
+		{
+			name: "empty digest",
+			predicate: Predicate{
+				ScanClass: ScanClassSCA,
+				Inventory: &Inventory{Digest: Digest{"sha256": ""}},
+			},
+		},
+		{
+			name:      "no inventory",
+			predicate: Predicate{ScanClass: ScanClassSCA},
+		},
+		{
+			name: "non-SCA class",
+			predicate: Predicate{
+				ScanClass: ScanClassSAST,
+				Inventory: &Inventory{Digest: Digest{"sha256": "digest-value"}},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := tt.predicate.InventoryDigest("sha256")
+			assert.Equal(t, tt.want, got)
+			assert.Equal(t, tt.wantOK, ok)
+		})
+	}
+}
+
 func TestPredicate_RoundTrip_SAST(t *testing.T) {
 	p := Predicate{
 		SchemaVersion: SchemaVersion,
