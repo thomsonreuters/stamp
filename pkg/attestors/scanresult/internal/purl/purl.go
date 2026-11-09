@@ -21,6 +21,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/package-url/packageurl-go"
 )
 
 // ErrUnsupportedEcosystem is the sentinel returned (wrapped) when ComponentPURL is
@@ -42,52 +44,34 @@ func (e *UnsupportedEcosystemError) Error() string {
 
 func (e *UnsupportedEcosystemError) Unwrap() error { return ErrUnsupportedEcosystem }
 
-// ecosystemToPURLType maps scanner ecosystem labels (and common aliases) to their
-// canonical Package-URL "type". Extend this map to support a new ecosystem.
-var ecosystemToPURLType = map[string]string{
-	"npm":       "npm",
-	"maven":     "maven",
-	"gradle":    "maven",
-	"pypi":      "pypi",
-	"pip":       "pypi",
-	"python":    "pypi",
-	"go":        "golang",
-	"golang":    "golang",
-	"gomodules": "golang",
-	"gem":       "gem",
-	"rubygems":  "gem",
-	"ruby":      "gem",
-	"nuget":     "nuget",
-	"dotnet":    "nuget",
-	"cargo":     "cargo",
-	"crates":    "cargo",
-	"rust":      "cargo",
-	"composer":  "composer",
-	"php":       "composer",
-	"packagist": "composer",
-	"apk":       "apk",
-	"alpine":    "apk",
-	"deb":       "deb",
-	"debian":    "deb",
-	"ubuntu":    "deb",
-	"rpm":       "rpm",
-	"redhat":    "rpm",
-	"rhel":      "rpm",
-	"hex":       "hex",
-	"erlang":    "hex",
-	"elixir":    "hex",
-	"pub":       "pub",
-	"dart":      "pub",
-	"conan":     "conan",
-	"swift":     "swift",
-	"cocoapods": "cocoapods",
-	"pod":       "cocoapods",
+// ecosystemAliases maps scanner labels that differ from canonical PURL types.
+var ecosystemAliases = map[string]string{
+	"alpine":    packageurl.TypeApk,
+	"crates":    packageurl.TypeCargo,
+	"dart":      packageurl.TypePub,
+	"debian":    packageurl.TypeDebian,
+	"dotnet":    packageurl.TypeNuget,
+	"elixir":    packageurl.TypeHex,
+	"erlang":    packageurl.TypeHex,
+	"go":        packageurl.TypeGolang,
+	"gomodules": packageurl.TypeGolang,
+	"gradle":    packageurl.TypeMaven,
+	"packagist": packageurl.TypeComposer,
+	"php":       packageurl.TypeComposer,
+	"pip":       packageurl.TypePyPi,
+	"python":    packageurl.TypePyPi,
+	"redhat":    packageurl.TypeRPM,
+	"rhel":      packageurl.TypeRPM,
+	"ruby":      packageurl.TypeGem,
+	"rubygems":  packageurl.TypeGem,
+	"rust":      packageurl.TypeCargo,
+	"ubuntu":    packageurl.TypeDebian,
+	"pod":       packageurl.TypeCocoapods,
 }
 
 // ComponentPURL builds a Package URL (pkg: scheme) for a dependency component from
-// its ecosystem, name, and version. An ecosystem that is empty or not present in
-// the supported map yields a *UnsupportedEcosystemError so callers can require it
-// to be explicitly implemented rather than emit a component with no PURL.
+// its ecosystem, name, and version. Only canonical PURL types known to the library
+// are accepted; scanner ecosystem aliases are mapped to their canonical type.
 //
 // Examples:
 //   - ComponentPURL("npm", "lodash", "4.17.21")            -> pkg:npm/lodash@4.17.21
@@ -95,12 +79,11 @@ var ecosystemToPURLType = map[string]string{
 //   - ComponentPURL("golang", "github.com/x/y", "v1.2.3")  -> pkg:golang/github.com/x/y@v1.2.3
 func ComponentPURL(ecosystem, name, version string) (string, error) {
 	key := strings.ToLower(strings.TrimSpace(ecosystem))
-	if key == "" {
-		return "", &UnsupportedEcosystemError{Ecosystem: ecosystem}
+	purlType := key
+	if alias, ok := ecosystemAliases[key]; ok {
+		purlType = alias
 	}
-
-	purlType, ok := ecosystemToPURLType[key]
-	if !ok {
+	if _, ok := packageurl.KnownTypes[purlType]; !ok {
 		return "", &UnsupportedEcosystemError{Ecosystem: ecosystem}
 	}
 
@@ -111,7 +94,7 @@ func ComponentPURL(ecosystem, name, version string) (string, error) {
 
 	var namespace string
 	switch {
-	case purlType == "maven" && strings.Contains(name, ":"):
+	case purlType == packageurl.TypeMaven && strings.Contains(name, ":"):
 		// Maven identifies packages as group:artifact; PURL splits into namespace/name.
 		parts := strings.SplitN(name, ":", 2)
 		namespace, name = parts[0], parts[1]
@@ -121,18 +104,9 @@ func ComponentPURL(ecosystem, name, version string) (string, error) {
 		namespace, name = name[:idx], name[idx+1:]
 	}
 
-	var sb strings.Builder
-	sb.WriteString("pkg:")
-	sb.WriteString(purlType)
-	sb.WriteString("/")
-	if namespace != "" {
-		sb.WriteString(namespace)
-		sb.WriteString("/")
+	purl := packageurl.NewPackageURL(purlType, namespace, name, strings.TrimSpace(version), nil, "")
+	if err := purl.Normalize(); err != nil {
+		return "", fmt.Errorf("invalid package URL: %w", err)
 	}
-	sb.WriteString(name)
-	if version = strings.TrimSpace(version); version != "" {
-		sb.WriteString("@")
-		sb.WriteString(version)
-	}
-	return sb.String(), nil
+	return purl.ToString(), nil
 }

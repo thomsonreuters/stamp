@@ -30,10 +30,12 @@ func TestComponentPURL_Supported(t *testing.T) {
 		want      string
 	}{
 		{"npm", "npm", "lodash", "4.17.21", "pkg:npm/lodash@4.17.21"},
-		{"pypi alias", "PyPI", "requests", "2.31.0", "pkg:pypi/requests@2.31.0"},
+		{"scoped npm", "npm", "@angular/core", "17.0.0", "pkg:npm/%40angular/core@17.0.0"},
+		{"pypi normalization", "PyPI", "Requests_Tool", "2.31.0", "pkg:pypi/requests-tool@2.31.0"},
 		{"maven group:artifact", "Maven", "com.google.guava:guava", "32.1.3", "pkg:maven/com.google.guava/guava@32.1.3"},
 		{"golang module path", "golang", "github.com/spf13/cobra", "v1.10.2", "pkg:golang/github.com/spf13/cobra@v1.10.2"},
 		{"deb alias", "debian", "openssl", "1.1.1", "pkg:deb/openssl@1.1.1"},
+		{"conda", "conda", "requests", "2.31.0", "pkg:conda/requests@2.31.0"},
 		{"no version", "gem", "rails", "", "pkg:gem/rails"},
 	}
 
