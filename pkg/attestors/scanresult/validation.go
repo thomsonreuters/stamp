@@ -72,7 +72,7 @@ func (a *Attestor) ValidateConfig(config core.Config) error {
 			fmt.Sprintf("input-format must be one of %v, got '%s'", loaders.Formats(), a.config.InputFormat))
 	}
 
-	if err := validateSubjectDigest(a.config.SubjectDigest, "validate"); err != nil {
+	if err := validateSubjectDigest(a.config.SubjectDigestAlgorithm, a.config.SubjectDigest, "validate"); err != nil {
 		return err
 	}
 
@@ -88,10 +88,29 @@ func (a *Attestor) resolveReportPath(operation, errorMessage string) error {
 	return nil
 }
 
-func validateSubjectDigest(digest, operation string) error {
-	if digest != "" && !isValidSHA256(digest) {
+func validateSubjectDigest(algorithm, digest, operation string) error {
+	if algorithm == "" {
 		return pkgerrors.NewWithContext(id, operation,
-			"subject-digest must be a 64-character lowercase hex SHA-256 digest")
+			"subject-digest-algorithm is required ('gitCommit' or 'sha256')")
+	}
+	if digest == "" {
+		return pkgerrors.NewWithContext(id, operation, "subject-digest is required")
+	}
+
+	switch algorithm {
+	case "sha256":
+		if !isValidSHA256(digest) {
+			return pkgerrors.NewWithContext(id, operation,
+				"subject-digest must be a 64-character lowercase hex SHA-256 digest when subject-digest-algorithm is 'sha256'")
+		}
+	case "gitCommit":
+		if !isValidGitCommit(digest) {
+			return pkgerrors.NewWithContext(id, operation,
+				"subject-digest must be a 40- or 64-character lowercase hex Git object ID when subject-digest-algorithm is 'gitCommit'")
+		}
+	default:
+		return pkgerrors.NewWithContext(id, operation,
+			"subject-digest-algorithm must be 'gitCommit' or 'sha256'")
 	}
 	return nil
 }
@@ -102,7 +121,15 @@ const sha256HexLength = 64
 // isValidSHA256 reports whether s is exactly 64 lowercase hexadecimal characters,
 // the canonical form of a SHA-256 digest bound as an in-toto subject.
 func isValidSHA256(s string) bool {
-	if len(s) != sha256HexLength {
+	return len(s) == sha256HexLength && isLowerHex(s)
+}
+
+func isValidGitCommit(s string) bool {
+	return (len(s) == 40 || len(s) == 64) && isLowerHex(s)
+}
+
+func isLowerHex(s string) bool {
+	if s == "" {
 		return false
 	}
 	for _, c := range s {

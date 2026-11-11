@@ -337,7 +337,10 @@ The second expression requires no severity-`1` findings; `bySeverity` contains o
 
 The predicate is a stable, vendor-neutral projection of scanner output. The scan-result attestor builds it from normalized input or supported native scanner output; producers of normalized input map their scanner output to that input schema. The predicate includes an optional per-finding `extensions` field for scanner-specific metadata.
 
-Digest fields are algorithm-keyed maps (for example, `sha256` or `sha512`); scan-result v1 currently emits only `sha256`, but is a map to maintain the same shape as other predicate types.
+Digest fields inside the predicate are algorithm-keyed maps (for example,
+`inventory.digest.sha256`). The in-toto statement subject is configured
+separately by the caller: source/pre-build scans use `gitCommit`, and
+post-build artifact scans use `sha256`.
 
 ### Input formats
 
@@ -348,6 +351,6 @@ The `scan-result` attestor produces this predicate from the input formats below,
 
 ### Notes
 
-- Separate SAST and SCA attestations can be associated with the same artifact when both are configured with the same subject-digest, letting a verifier assert both classes cover the same artifact.
+- Separate SAST and SCA attestations can be discovered under the same subject when both scan the same target at the same lifecycle stage and use the same `subject-digest-algorithm` and `subject-digest`. Source/pre-build scans normally share a `gitCommit`; post-build scans of the same artifact share its `sha256`.
 - Severity and CVSS are kept distinct: `finding.severity` is the scanner-normalized rating, while `vulnerability.cvss[]` carries structured vectors/scores with their source.
 - Missing data (fix versions, exploitability, CVSS) is omitted rather than fabricated. Suppression/VEX fields are intentionally absent in v1 and may be added additively later.

@@ -28,7 +28,6 @@ import (
 	"github.com/invopop/jsonschema"
 	"github.com/thomsonreuters/stamp/pkg/attestors/scanresult/loaders"
 	"github.com/thomsonreuters/stamp/pkg/core"
-	"github.com/thomsonreuters/stamp/pkg/crypto/hash"
 	pkgerrors "github.com/thomsonreuters/stamp/pkg/errors"
 	"github.com/thomsonreuters/stamp/pkg/intoto"
 	"github.com/thomsonreuters/stamp/pkg/logger"
@@ -39,32 +38,28 @@ func init() {
 	_ = core.RegisterAttestor(func(log logger.Logger) core.Attestor {
 		return &Attestor{
 			logger: log.With("attestor_id", id),
-			hasher: hash.New(hash.Config{
-				Algorithms: []string{hash.AlgorithmSHA256},
-			}),
 		}
 	})
 }
 
 // Config holds the parsed attestor configuration.
 type Config struct {
-	ReportPath    string `json:"report-path"`
-	ScanClass     string `json:"scan-class"`
-	InputFormat   string `json:"input-format"`
-	SubjectName   string `json:"subject-name"`
-	SubjectDigest string `json:"subject-digest"`
+	ReportPath             string `json:"report-path"`
+	ScanClass              string `json:"scan-class"`
+	InputFormat            string `json:"input-format"`
+	SubjectName            string `json:"subject-name"`
+	SubjectDigestAlgorithm string `json:"subject-digest-algorithm"`
+	SubjectDigest          string `json:"subject-digest"`
 }
 
 // Attestor implements core.Attestor for loader-based scan-result ingestion.
 type Attestor struct {
 	logger logger.Logger
-	hasher hash.Hasher
 	config Config
 
-	reportPath   string
-	reportDigest string
-	predicate    scanpredicate.Predicate
-	subject      intoto.Subject
+	reportPath string
+	predicate  scanpredicate.Predicate
+	subject    intoto.Subject
 }
 
 func (a *Attestor) ID() string           { return id }
@@ -107,23 +102,32 @@ func (a *Attestor) ConfigSchema() []core.ConfigField {
 			Example:     "sbom+app.cdx.json",
 		},
 		{
+			Name:        keySubjectDigestAlgorithm,
+			Type:        "string",
+			Default:     "",
+			Required:    true,
+			Description: "Digest algorithm for the scanned target: 'gitCommit' for source/pre-build scans or 'sha256' for built artifacts",
+			Example:     "gitCommit",
+		},
+		{
 			Name:        keySubjectDigest,
 			Type:        "string",
 			Default:     "",
-			Required:    false,
-			Description: "Optional SHA-256 of the scanned artifact (e.g. the SBOM) to bind as the subject; defaults to the report digest",
-			Example:     "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+			Required:    true,
+			Description: "Digest value of the scanned target, using subject-digest-algorithm",
+			Example:     "0123456789abcdef0123456789abcdef01234567",
 		},
 	}
 }
 
 func (a *Attestor) parseConfig(config core.Config) {
 	a.config = Config{
-		ReportPath:    config.GetString(keyReportPath, ""),
-		ScanClass:     config.GetString(keyScanClass, ""),
-		InputFormat:   config.GetString(keyInputFormat, loaders.FormatNormalized),
-		SubjectName:   config.GetString(keySubjectName, ""),
-		SubjectDigest: config.GetString(keySubjectDigest, ""),
+		ReportPath:             config.GetString(keyReportPath, ""),
+		ScanClass:              config.GetString(keyScanClass, ""),
+		InputFormat:            config.GetString(keyInputFormat, loaders.FormatNormalized),
+		SubjectName:            config.GetString(keySubjectName, ""),
+		SubjectDigestAlgorithm: config.GetString(keySubjectDigestAlgorithm, ""),
+		SubjectDigest:          config.GetString(keySubjectDigest, ""),
 	}
 }
 
@@ -144,7 +148,7 @@ func (a *Attestor) PreAttest(ctx context.Context, config core.Config) error {
 	return nil
 }
 
-// Attest reads the report, loads it into a predicate, computes its digest, and derives the subject.
+// Attest reads the report, loads it into a predicate, and derives the subject.
 func (a *Attestor) Attest(ctx context.Context, config core.Config) error {
 	start := time.Now()
 	a.logger.InfoContext(ctx, "starting scan-result attestation collection")
@@ -178,12 +182,6 @@ func (a *Attestor) Attest(ctx context.Context, config core.Config) error {
 		return err
 	}
 
-	result, err := a.hasher.HashBytes(ctx, content, a.reportPath)
-	if err != nil {
-		return pkgerrors.WrapWithContext(err, id, "collect", "failed to hash report file")
-	}
-	a.reportDigest = result.Digests[hash.AlgorithmSHA256]
-
 	a.subject = a.deriveSubject()
 
 	a.logger.InfoContext(ctx, "scan-result attestation collection completed",
@@ -194,42 +192,18 @@ func (a *Attestor) Attest(ctx context.Context, config core.Config) error {
 	return nil
 }
 
-// deriveSubject binds the attestation to what was scanned. Precedence:
-//  1. an explicit --subject-digest,
-//  2. for SCA, the analyzed SBOM digest from inventory,
-//  3. otherwise a sha256 over the raw report bytes.
-//
-// All externally supplied digests are validated by validatePredicate before this
-// runs, so only known-good SHA-256 values reach the subject here.
+// deriveSubject binds the attestation to the explicitly configured scan target.
 func (a *Attestor) deriveSubject() intoto.Subject {
-	if a.config.SubjectDigest != "" {
-		return intoto.Subject{
-			Name:   a.subjectName(),
-			Digest: map[string]string{"sha256": a.config.SubjectDigest},
-		}
-	}
-
-	if inventoryDigest, ok := a.predicate.InventoryDigest("sha256"); ok {
-		name := a.config.SubjectName
-		if name == "" {
-			name = "sbom+scan-result"
-		}
-		return intoto.Subject{
-			Name:   name,
-			Digest: map[string]string{"sha256": inventoryDigest},
-		}
-	}
-
 	return intoto.Subject{
 		Name:   a.subjectName(),
-		Digest: map[string]string{"sha256": a.reportDigest},
+		Digest: map[string]string{a.config.SubjectDigestAlgorithm: a.config.SubjectDigest},
 	}
 }
 
 // validatePredicate fails closed on a structurally invalid or self-inconsistent
 // report before any part of it is hashed and signed.
 func (a *Attestor) validatePredicate() error {
-	if err := validateSubjectDigest(a.config.SubjectDigest, "collect"); err != nil {
+	if err := validateSubjectDigest(a.config.SubjectDigestAlgorithm, a.config.SubjectDigest, "collect"); err != nil {
 		return err
 	}
 

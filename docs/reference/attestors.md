@@ -322,11 +322,31 @@ Attests normalized SAST (static analysis) or SCA (dependency/vulnerability) secu
 
 ### Subjects produced
 
-A single subject binding the attestation to what was scanned. Precedence:
+A single subject binding the attestation to the scanned target. Both
+`subject-digest-algorithm` and `subject-digest` are required; the subject keeps
+the supplied algorithm and value unchanged. Select them according to the scan
+stage, not `scan-class`:
 
-1. An explicit `subject-digest` (e.g. the scanned image or SBOM digest).
-2. For SCA, the analyzed SBOM digest from the predicate's `inventory.digest`.
-3. Otherwise, the `sha256` of the ingested input bytes, named `scan-result+<class>`.
+- Source/pre-build scans use `gitCommit` and the scanned source commit ID.
+- Post-build scans use `sha256` and the scanned artifact digest, such as a
+  container image digest.
+
+The report bytes and an SCA predicate's `inventory.digest` are not substitutes
+for the scanned target digest and are never used to derive the subject.
+
+Source/pre-build scan:
+
+```yaml
+subject-digest-algorithm: gitCommit
+subject-digest: "0123456789abcdef0123456789abcdef01234567"
+```
+
+Post-build artifact scan:
+
+```yaml
+subject-digest-algorithm: sha256
+subject-digest: "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+```
 
 ### Key behaviors
 
@@ -337,7 +357,8 @@ A single subject binding the attestation to what was scanned. Precedence:
 - `scan-class` (`sast` or `sca`) is required. Every input format can carry findings for multiple classes, so it selects which findings are attested.
 - A normalized report with findings must contain at least one record matching `scan-class`; an empty findings list is accepted as a clean scan.
 - For normalized SCA input, a positive `inventory.componentsScanned` records how many components were analyzed. It is included in the predicate inventory and checked against the number of components with findings; zero means the count is unavailable.
-- All externally supplied digests are validated as 64-character lowercase hex SHA-256 before being bound as the subject.
+- `subject-digest` is required and validated according to `subject-digest-algorithm`: `sha256` requires 64 lowercase hex characters; `gitCommit` accepts a 40- or 64-character lowercase hex Git object ID. Other algorithms are rejected.
+- The predicate's SCA `inventory.digest`, when present, remains the digest of the analyzed SBOM; it does not determine the statement subject.
 
 ### Prerequisites
 

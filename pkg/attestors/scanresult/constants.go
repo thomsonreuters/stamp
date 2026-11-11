@@ -22,9 +22,10 @@ const (
 
 // Config key names accepted by the attestor.
 const (
-	keyReportPath    = "report-path"
-	keyScanClass     = "scan-class"
-	keyInputFormat   = "input-format"
-	keySubjectName   = "subject-name"
-	keySubjectDigest = "subject-digest"
+	keyReportPath             = "report-path"
+	keyScanClass              = "scan-class"
+	keyInputFormat            = "input-format"
+	keySubjectName            = "subject-name"
+	keySubjectDigestAlgorithm = "subject-digest-algorithm"
+	keySubjectDigest          = "subject-digest"
 )
