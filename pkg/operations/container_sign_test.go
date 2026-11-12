@@ -425,3 +425,23 @@ func TestContainerSignOp_writeBundle_FileError(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to open bundle for writing")
 }
+
+func TestContainerSignOp_GetResult_NilBeforeExecute(t *testing.T) {
+	op := NewContainerSignOp(newTestConfig(nil), logger.NewNoop(), output.NewNoop())
+	assert.Nil(t, op.GetResult())
+}
+
+func TestContainerSignOp_GetResult_ReturnsSignedResult(t *testing.T) {
+	op := NewContainerSignOp(newTestConfig(nil), logger.NewNoop(), output.NewNoop())
+
+	want := &container.Result{
+		Result: sigstore.Result{BundleJSON: []byte(`{"bundle":true}`)},
+		Digest: "sha256:deadbeef",
+	}
+	// Execute sets this field after a successful signer.Sign call; set it
+	// directly here (same package) rather than driving a real image pull
+	// and signature through Execute.
+	op.result = want
+
+	assert.Same(t, want, op.GetResult())
+}
