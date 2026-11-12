@@ -96,6 +96,9 @@ The genesis attestation, one per protected branch, bound to the branch tip at on
 
 The tier derivation must also read the branch's **bypass-actor allow-list**, not only the boolean controls above. `restrictsForcePush: true` with a broad bypass set is not tier-1 in practice, because listed actors can force-push without review and the config never changes when they do (§7.1.5, bypass shape). A protected branch with a wide bypass set is classified down or flagged — never accepted as fully protected on the strength of `restrictsForcePush` alone.
 
+The field and behavior checklist for this predicate and its fleet producer is
+maintained in [the source-onboarding contract](source-onboarding-contract.md).
+
 ### 3.4 Verification Summary Attestations
 
 The engine emits these (§6.4). The pipeline signs them with the source-gate signer — a stable identity that no build or dev workflow can mint. The VSA's `policy.uri` records which source profile blessed the commit. Downstream consumers discriminate on it (this is what makes exceptions visible forever, §7.3).
