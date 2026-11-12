@@ -10,16 +10,17 @@ This reference focuses on what `--show-config` does not tell you: which subjects
 
 ## Index
 
-| ID                | Predicate URI                                                | What it attests                                                                            |
-| ----------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
-| `git`             | `https://github.com/thomsonreuters/stamp/git/v1`             | Source control state: commit, repository status, optional refs/remotes/tags/submodules     |
-| `file`            | `https://github.com/thomsonreuters/stamp/file/v1`            | File and directory hashes plus optional metadata for one or more paths                     |
-| `command`         | `https://github.com/thomsonreuters/stamp/command/v1`         | Execution of a command or script, including timing, exit status, output, and environment   |
-| `github-workflow` | `https://github.com/thomsonreuters/stamp/github-workflow/v1` | GitHub Actions workflow run context (workflow, runner, trigger, repository, optional OIDC) |
-| `go-builder`      | `https://slsa.dev/provenance/v1`                             | SLSA v1 provenance for a Go binary built from a `.slsa-goreleaser.yml` specification       |
-| `jwt`             | `https://witness.dev/attestations/jwt/v0.1`                  | A JWT token's header, claims, and signature-verification result                            |
-| `sbom`            | `https://github.com/thomsonreuters/stamp/sbom/v1`            | A CycloneDX or SPDX SBOM document, with optional schema validation                         |
-| `ec2`             | `https://github.com/thomsonreuters/stamp/ec2/v1`             | AWS EC2 runtime environment metadata collected from IMDS                                   |
+| ID                | Predicate URI                                                | What it attests                                                                                                                  |
+| ----------------- | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| `git`             | `https://github.com/thomsonreuters/stamp/git/v1`             | Source control state: commit, repository status, optional refs/remotes/tags/submodules                                           |
+| `file`            | `https://github.com/thomsonreuters/stamp/file/v1`            | File and directory hashes plus optional metadata for one or more paths                                                           |
+| `command`         | `https://github.com/thomsonreuters/stamp/command/v1`         | Execution of a command or script, including timing, exit status, output, and environment                                         |
+| `github-workflow` | `https://github.com/thomsonreuters/stamp/github-workflow/v1` | GitHub Actions workflow run context (workflow, runner, trigger, repository, optional OIDC)                                       |
+| `go-builder`      | `https://slsa.dev/provenance/v1`                             | SLSA v1 provenance for a Go binary built from a `.slsa-goreleaser.yml` specification                                             |
+| `jwt`             | `https://witness.dev/attestations/jwt/v0.1`                  | A JWT token's header, claims, and signature-verification result                                                                  |
+| `sbom`            | `https://github.com/thomsonreuters/stamp/sbom/v1`            | A CycloneDX or SPDX SBOM document, with optional schema validation                                                               |
+| `scan-result`     | `https://github.com/thomsonreuters/stamp/scan-result/v1`     | SAST or SCA security scan findings built from normalized input or supported native scanner output                                |
+| `ec2`             | `https://github.com/thomsonreuters/stamp/ec2/v1`             | AWS EC2 runtime environment metadata collected from IMDS                                                                         |
 
 ---
 
@@ -306,6 +307,66 @@ A single subject for the SBOM file itself:
 ### See also
 
 - Predicate shape: [predicates.md#sbom](./predicates.md#sbom)
+
+---
+
+## scan-result
+
+### Purpose
+
+Attests normalized SAST (static analysis) or SCA (dependency/vulnerability) security scan findings. A single predicate type represents both classes, and its `scanClass` field identifies the emitted finding set. The required `scan-class` configuration selects that class. The attestor owns input handling: it turns a vendor-neutral normalized findings document or a supported scanner's native output into the signed predicate, so a standalone `stamp` CLI can attest scanner output without an external normalizer. Callers never author the predicate directly.
+
+### Predicate URI
+
+`https://github.com/thomsonreuters/stamp/scan-result/v1`
+
+### Subjects produced
+
+A single subject binding the attestation to the scanned target. Both
+`subject-digest-algorithm` and `subject-digest` are required; the subject keeps
+the supplied algorithm and value unchanged. Select them according to the scan
+stage, not `scan-class`:
+
+- Source/pre-build scans use `gitCommit` and the scanned source commit ID.
+- Post-build scans use `sha256` and the scanned artifact digest, such as a
+  container image digest.
+
+The report bytes and an SCA predicate's `inventory.digest` are not substitutes
+for the scanned target digest and are never used to derive the subject.
+
+Source/pre-build scan:
+
+```yaml
+subject-digest-algorithm: gitCommit
+subject-digest: "0123456789abcdef0123456789abcdef01234567"
+```
+
+Post-build artifact scan:
+
+```yaml
+subject-digest-algorithm: sha256
+subject-digest: "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+```
+
+### Key behaviors
+
+- `report-path` is required and points to the input file.
+- `input-format` selects how that file is interpreted:
+  - `normalized` (default) — stamp's vendor-neutral normalized findings document. Producers map their scanner output onto this stable schema; stamp projects it onto the predicate (class discrimination, PURL emission, summary aggregation). Fails closed on unknown fields.
+  - `snyk` — native Snyk output. `snyk test --json` for SCA; the SARIF from `snyk code test --sarif` for SAST. This is the reference loader for out-of-the-box use.
+- `scan-class` (`sast` or `sca`) is required. Every input format can carry findings for multiple classes, so it selects which findings are attested.
+- A normalized report with findings must contain at least one record matching `scan-class`; an empty findings list is accepted as a clean scan.
+- For normalized SCA input, a positive `inventory.componentsScanned` records how many components were analyzed. It is included in the predicate inventory and checked against the number of components with findings; zero means the count is unavailable.
+- `subject-digest` is required and validated according to `subject-digest-algorithm`: `sha256` requires 64 lowercase hex characters; `gitCommit` accepts a 40- or 64-character lowercase hex Git object ID. Other algorithms are rejected.
+- The predicate's SCA `inventory.digest`, when present, remains the digest of the analyzed SBOM; it does not determine the statement subject.
+
+### Prerequisites
+
+- The report file exists, is non-empty, and matches the selected `input-format`.
+
+### See also
+
+- Predicate shape: [predicates.md#scan-result](./predicates.md#scan-result)
 
 ---
 

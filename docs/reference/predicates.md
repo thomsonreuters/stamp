@@ -26,6 +26,7 @@ The framework's registry maps attestors to predicate URIs, and a single predicat
 | `https://github.com/thomsonreuters/stamp/github-workflow/v1` | `github-workflow`     | GitHub Actions workflow run context                    |
 | `https://witness.dev/attestations/jwt/v0.1`                  | `jwt`                 | JWT header, claims, and verification result            |
 | `https://github.com/thomsonreuters/stamp/sbom/v1`            | `sbom`                | Wrapped CycloneDX or SPDX SBOM document                |
+| `https://github.com/thomsonreuters/stamp/scan-result/v1`     | `scan-result`         | Normalized SAST or SCA security scan findings          |
 
 All predicates are wrapped in an in-toto Statement v1 envelope. See the [in-toto Statement specification](https://github.com/in-toto/attestation/blob/main/spec/v1/statement.md) for the envelope shape (`_type`, `subject`, `predicateType`, `predicate`).
 
@@ -298,3 +299,58 @@ The wrapping predicate is project-specific; the embedded `content` is the upstre
 
 - The predicate embeds the SBOM in full rather than by reference. For large component graphs this produces correspondingly large attestations; consider this when configuring downstream storage and transparency logs.
 - Schema validation is performed at attestation time according to `validate-schema` and `validation-behavior`; the predicate itself does not carry validation status.
+
+---
+
+## scan-result
+
+### URI
+
+`https://github.com/thomsonreuters/stamp/scan-result/v1`
+
+### Producer(s)
+
+- `scan-result`
+
+### Top-level shape
+
+- `schemaVersion`: predicate contract version (currently `1.0`).
+- `scanClass`: `sast` or `sca`; discriminates the finding set.
+- `scan`: execution metadata (`id`, `status`, `startedOn`, `finishedOn`, `scope`).
+- `scanner`: the producing tool (`name`, `vendor`, `version`, optional binary/advisory-DB digests).
+- `inventory` (SCA): the SBOM or manifest analyzed, referenced by `uri` + `digest`, with optional `componentsScanned` count.
+- `findings`: unified findings. SAST findings carry `rule`/`weakness`/`location`; SCA findings carry `component` (PURL-first) and `vulnerability` (CVE/GHSA, CVSS, EPSS, CISA KEV). Both may carry SCM `source` context and an `extensions` escape hatch.
+- `summary`: finding counts (`findings`, `components`, `bySeverity`) for cheap policy evaluation.
+- `policy` (optional): a recorded CI gate decision.
+- `rawReport` (optional): the full scanner report referenced out-of-band by `uri` + `digest`.
+
+The summary aggregates are intended for Rego policies, so common checks can use counts directly instead of recounting findings. For example:
+
+```rego
+input.predicate.summary.findings < 10
+object.get(input.predicate.summary.bySeverity, "1", 0) == 0
+```
+
+The second expression requires no severity-`1` findings; `bySeverity` contains only observed, lowercase severity keys, so use a default of `0` when checking for absence.
+
+### Spec reference
+
+The predicate is a stable, vendor-neutral projection of scanner output. The scan-result attestor builds it from normalized input or supported native scanner output; producers of normalized input map their scanner output to that input schema. The predicate includes an optional per-finding `extensions` field for scanner-specific metadata.
+
+Digest fields inside the predicate are algorithm-keyed maps (for example,
+`inventory.digest.sha256`). The in-toto statement subject is configured
+separately by the caller: source/pre-build scans use `gitCommit`, and
+post-build artifact scans use `sha256`.
+
+### Input formats
+
+The `scan-result` attestor produces this predicate from the input formats below, selected by its `input-format` configuration. Callers do not supply the predicate directly.
+
+- `normalized` (default): stamp's vendor-neutral normalized findings document (see the `scan-result` attestor reference).
+- `snyk`: native `snyk test --json` (SCA) and Snyk Code SARIF (SAST).
+
+### Notes
+
+- Separate SAST and SCA attestations can be discovered under the same subject when both scan the same target at the same lifecycle stage and use the same `subject-digest-algorithm` and `subject-digest`. Source/pre-build scans normally share a `gitCommit`; post-build scans of the same artifact share its `sha256`.
+- Severity and CVSS are kept distinct: `finding.severity` is the scanner-normalized rating, while `vulnerability.cvss[]` carries structured vectors/scores with their source.
+- Missing data (fix versions, exploitability, CVSS) is omitted rather than fabricated. Suppression/VEX fields are intentionally absent in v1 and may be added additively later.
