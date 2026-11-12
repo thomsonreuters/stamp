@@ -25,6 +25,7 @@ The framework's registry maps attestors to predicate URIs, and a single predicat
 | `https://github.com/thomsonreuters/stamp/git/v1`             | `git`                 | Git repository commit and working-tree state           |
 | `https://github.com/thomsonreuters/stamp/github-workflow/v1` | `github-workflow`     | GitHub Actions workflow run context                    |
 | `https://witness.dev/attestations/jwt/v0.1`                  | `jwt`                 | JWT header, claims, and verification result            |
+| `https://thomsonreuters.com/pr-review/v1`                    | `pr-review`           | Review evidence for a merged GitHub pull request       |
 | `https://github.com/thomsonreuters/stamp/sbom/v1`            | `sbom`                | Wrapped CycloneDX or SPDX SBOM document                |
 
 All predicates are wrapped in an in-toto Statement v1 envelope. See the [in-toto Statement specification](https://github.com/in-toto/attestation/blob/main/spec/v1/statement.md) for the envelope shape (`_type`, `subject`, `predicateType`, `predicate`).
@@ -268,6 +269,36 @@ This is a project-specific predicate type. The OIDC claim names follow [RFC 7519
 
 - The URI uses the `witness.dev` host and does not follow the Thomson Reuters convention; this is deliberate so that Witness-aware verifiers can consume the predicate without configuration.
 - `verification: unverified` indicates the attestor attempted verification and it failed; `skipped` indicates verification was explicitly disabled. Distinguishing these matters for policy.
+
+---
+
+## pr-review
+
+### URI
+
+`https://thomsonreuters.com/pr-review/v1`
+
+### Producer(s)
+
+- `pr-review`
+
+### Top-level shape
+
+- `repository`: numeric id, node id, full name, default branch.
+- `pullRequest`: id, node id, number, URL, `requestor` (author), `baseRef`, and `reviewedRevision.gitCommit` (the head SHA).
+- `landing`: `revision.gitCommit` (landed SHA), `parents`, `mergedAt`, `mergedBy`, `mergeQueueUsed`, `commitSignature` (`verified`, `reason`, optional `verifiedAt`), and optional `method` (`merge`, `fast-forward`, `squash`).
+- `reviewPolicy`: `source` (`github-ruleset`), `requirements[]` (one per `pull_request` rule of each applicable ruleset, ordered by ruleset id, with required count, code-owner and last-push flags, and `reviewers[]` resolved to a `team` or `user` plus `minimumApprovals`), and `evaluation` (`available`, `httpStatus` when unavailable, and the rule `suites` whose `after_sha` is the landed commit).
+- `reviews[]`: id, node id, URL, reviewer, state, optional `submittedAt`, `reviewedRevision.gitCommit`, ordered by (`submittedAt`, `id`).
+- `collection`: `mode` (`post-hoc-github-api`) and `collectedAt`.
+
+### Spec reference
+
+This is a project-specific predicate type. Field names use camelCase to match the pilot predicates the policy engine was designed against.
+
+### Notes
+
+- The subject is the repository URL with `gitCommit` set to the landed commit, never the pull request head.
+- Reviewer identities are numeric GitHub IDs, as referenced by the ruleset. Team membership at merge time is not recorded.
 
 ---
 

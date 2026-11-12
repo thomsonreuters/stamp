@@ -20,6 +20,7 @@ This reference focuses on what `--show-config` does not tell you: which subjects
 | `jwt`             | `https://witness.dev/attestations/jwt/v0.1`                  | A JWT token's header, claims, and signature-verification result                            |
 | `sbom`            | `https://github.com/thomsonreuters/stamp/sbom/v1`            | A CycloneDX or SPDX SBOM document, with optional schema validation                         |
 | `ec2`             | `https://github.com/thomsonreuters/stamp/ec2/v1`             | AWS EC2 runtime environment metadata collected from IMDS                                   |
+| `pr-review`       | `https://thomsonreuters.com/pr-review/v1`                    | Review evidence for a merged GitHub pull request, bound to the landed commit               |
 
 ---
 
@@ -189,6 +190,43 @@ Captures the runtime context of a GitHub Actions workflow run, including workflo
 ### See also
 
 - Predicate shape: [predicates.md#github-workflow](./predicates.md#github-workflow)
+
+---
+
+## pr-review
+
+### Purpose
+
+Records the review evidence for a merged GitHub pull request: the pull request, its submitted reviews, how it landed, and the pull-request rules of every active branch ruleset that targets the base branch. Policies use it to check four-eye review on protected branches.
+
+### Predicate URI
+
+`https://thomsonreuters.com/pr-review/v1`
+
+### Subjects produced
+
+A single subject: the repository HTML URL with digest `gitCommit` set to the pull request's `merge_commit_sha` (the landed commit). The subject never names the pull request head, because that identity does not survive squash or rebase merges.
+
+### Key behaviors
+
+- `repository` (`owner/name`) and `pull-request` are required. Example: `stamp run --attestor pr-review --set repository=acme/widget --set pull-request=512`.
+- The attestor only issues `GET` requests. Reviews, timeline, and rulesets are paginated; pagination links that leave the configured API origin are refused.
+- A pull request that is not merged fails the run.
+- Every predicate field is required except `landing.commitSignature.verifiedAt`, `reviews[].submittedAt`, `reviewPolicy.requirements[].reviewers[].minimumApprovals` (emitted as `null`), and `landing.method`. A missing required field fails the run with an error that names the GitHub response field, and no predicate is produced.
+- Rulesets apply when `target=branch`, `enforcement=active`, an `include` pattern matches the base branch, and no `exclude` pattern does. Matching is exact: `~ALL`, `~DEFAULT_BRANCH`, `refs/heads/<base>`, or `<base>`. Glob patterns such as `refs/heads/release/*` are not expanded.
+- Required reviewers are resolved by numeric ID through `GET /organizations/{org_id}/team/{id}` and `GET /user/{id}`. Current team membership is not checked.
+- A 404 from the rule-suites endpoint records `reviewPolicy.evaluation.available: false` with `httpStatus: 404`. Any other error fails the run.
+- `landing.method` is `merge` (two or more parents), `fast-forward` (landed SHA equals head SHA), or `squash` (one parent and `(#<number>)` in the commit title). Otherwise it is omitted.
+
+### Prerequisites
+
+- A GitHub App installation access token (prefix `ghs_`) in the environment variable named by `token-env` (default `GITHUB_APP_INSTALLATION_TOKEN`). Personal access tokens and OAuth tokens are rejected.
+- The installation must be able to read the repository, its pull requests, rulesets, and the organization's teams. Rule-suite access is optional.
+- For GitHub Enterprise Server, set `api-url` (https only).
+
+### See also
+
+- Predicate shape: [predicates.md#pr-review](./predicates.md#pr-review)
 
 ---
 

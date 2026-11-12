@@ -1,0 +1,45 @@
+{
+  "url": "https://api.github.com/repos/example-org/example-service/pulls/101",
+  "id": 700000101,
+  "node_id": "PR_kwDOExample101",
+  "html_url": "https://github.com/example-org/example-service/pull/101",
+  "number": 101,
+  "state": "closed",
+  "title": "feat: add health endpoint",
+  "user": {
+    "login": "alice-example",
+    "id": 1001,
+    "node_id": "U_kgDOExample1001",
+    "avatar_url": "https://avatars.example.com/u/1001",
+    "url": "https://api.github.com/users/alice-example",
+    "html_url": "https://github.com/alice-example",
+    "type": "User",
+    "site_admin": false
+  },
+  "body": "Example change used as a test fixture.",
+  "created_at": "2026-03-02T09:00:00Z",
+  "closed_at": "2026-03-02T15:30:00Z",
+  "merged_at": "2026-03-02T15:30:00Z",
+  "merge_commit_sha": "3398f011cdab3283b2f280c1c58528641f1bab15",
+  "head": {
+    "label": "example-org:feature/101",
+    "ref": "feature/101",
+    "sha": "a7b32434a23c93c1b562a49cb6f28aefd9800c79"
+  },
+  "base": {
+    "label": "example-org:main",
+    "ref": "main",
+    "sha": "4cb222aa411e5a0e71738893e408507d617f32ce"
+  },
+  "merged": true,
+  "merged_by": {
+    "login": "alice-example",
+    "id": 1001,
+    "node_id": "U_kgDOExample1001",
+    "avatar_url": "https://avatars.example.com/u/1001",
+    "url": "https://api.github.com/users/alice-example",
+    "html_url": "https://github.com/alice-example",
+    "type": "User",
+    "site_admin": false
+  }
+}

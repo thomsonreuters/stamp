@@ -23,5 +23,6 @@ import (
 	_ "github.com/thomsonreuters/stamp/pkg/attestors/github-workflow"
 	_ "github.com/thomsonreuters/stamp/pkg/attestors/go-builder"
 	_ "github.com/thomsonreuters/stamp/pkg/attestors/jwt"
+	_ "github.com/thomsonreuters/stamp/pkg/attestors/pr-review"
 	_ "github.com/thomsonreuters/stamp/pkg/attestors/sbom"
 )
