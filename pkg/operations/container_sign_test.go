@@ -435,8 +435,8 @@ func TestContainerSignOp_GetResult_ReturnsSignedResult(t *testing.T) {
 	op := NewContainerSignOp(newTestConfig(nil), logger.NewNoop(), output.NewNoop())
 
 	want := &container.Result{
-		Result: sigstore.Result{BundleJSON: []byte(`{"bundle":true}`)},
-		Digest: "sha256:deadbeef",
+		BundleJSON: []byte(`{"bundle":true}`),
+		Digest:     "sha256:deadbeef",
 	}
 	// Execute sets this field after a successful signer.Sign call; set it
 	// directly here (same package) rather than driving a real image pull

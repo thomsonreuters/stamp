@@ -63,7 +63,7 @@ func TestPredicate_RoundTrip(t *testing.T) {
 					BypassModes:  []string{"always"},
 					BypassScopes: []string{"force_push"},
 				}},
-				Tier:              Tier1Protected,
+				Tier:              Tier2,
 				Continuity:        ContinuityFromThisRevisionForward,
 				Reonboarding:      &reonboarding,
 				IncidentReference: "INC-12345",
@@ -138,7 +138,7 @@ func TestPredicate_ValidateRejectsInvalidValues(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			predicate := validPredicate()
 			tt.mutate(&predicate)
-			assert.Error(t, predicate.Validate())
+			require.Error(t, predicate.Validate())
 		})
 	}
 }
@@ -267,7 +267,7 @@ func TestSchema_ValidatesPredicates(t *testing.T) {
 			var instance map[string]any
 			require.NoError(t, json.Unmarshal(data, &instance))
 			tt.mutate(instance)
-			assert.Error(t, schema.Validate(instance))
+			require.Error(t, schema.Validate(instance))
 		})
 	}
 }

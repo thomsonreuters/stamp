@@ -50,11 +50,17 @@ silently omitted.
 - Derive the tier from one observation of all listed settings and the complete
   bypass-actor list. `restrictsForcePush: true` alone is never sufficient for
   `tier1-protected`.
+- `tier1-protected` requires at least two approvals, CODEOWNERS review, linear
+  history, stale-approval dismissal, force-push restriction, and no broad
+  bypass actor. At least one approval without every tier-1 control is `tier2`;
+  zero approvals is `untiered`.
 - A bypass entry that grants access to a broad or unbounded population (for
   example, an organization/repository role or a team rather than an explicitly
   identified principal) is broad. A broad entry, or an entry whose effective
   scope cannot be resolved, must downgrade or flag the tier and cannot qualify
   as `tier1-protected`. Record all entries even when they cause a downgrade.
+  Only explicitly identified individual user actors are considered narrow;
+  group, role, organization, and unknown actor kinds are broad.
 - Do not emit a strong-tier assertion when any required setting or bypass
   evidence is missing, unsupported, or inconsistent. Surface the
   repository/branch failure so the central producer can retry safely.
