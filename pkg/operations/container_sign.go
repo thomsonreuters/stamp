@@ -42,6 +42,7 @@ type ContainerSignOp struct {
 	config config.ConfigurationIface
 	logger logger.Logger
 	output output.OutputIface
+	result *container.Result
 }
 
 func (o *ContainerSignOp) Validate(imageRef string) error {
@@ -115,6 +116,7 @@ func (o *ContainerSignOp) Execute(ctx context.Context, imageRef string) error {
 				"For key-based: check --private-key path and password",
 			)
 	}
+	o.result = res
 
 	if err := o.writeBundle(ctx, res); err != nil {
 		return err
@@ -201,4 +203,10 @@ func NewContainerSignOp(config config.ConfigurationIface, logger logger.Logger, 
 		logger: logger,
 		output: output,
 	}
+}
+
+// GetResult returns the signed container result (bundle, digest).
+// Returns nil if Execute has not been called or signing failed.
+func (o *ContainerSignOp) GetResult() *container.Result {
+	return o.result
 }
