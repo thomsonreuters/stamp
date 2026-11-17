@@ -356,6 +356,7 @@ subject-digest: "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a0
   - `snyk` — native Snyk output. `snyk test --json` for SCA; the SARIF from `snyk code test --sarif` for SAST. This is the reference loader for out-of-the-box use.
 - `scan-class` (`sast` or `sca`) is required. Every input format can carry findings for multiple classes, so it selects which findings are attested.
 - A normalized report with findings must contain at least one record matching `scan-class`; an empty findings list is accepted as a clean scan.
+- Snyk input must match `scan-class`: SCA requires at least one report with a `vulnerabilities` array or nested `applications` containing valid SCA reports; SAST requires a SARIF `runs` array. Empty findings arrays are accepted, but missing or null arrays do not establish the report shape.
 - For normalized SCA input, a positive `inventory.componentsScanned` records how many components were analyzed. It is included in the predicate inventory and checked against the number of components with findings; zero means the count is unavailable.
 - `subject-digest` is required and validated according to `subject-digest-algorithm`: `sha256` requires 64 lowercase hex characters; `gitCommit` accepts a 40- or 64-character lowercase hex Git object ID. Other algorithms are rejected.
 - The predicate's SCA `inventory.digest`, when present, remains the digest of the analyzed SBOM; it does not determine the statement subject.

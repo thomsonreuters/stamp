@@ -141,3 +141,56 @@ func TestSnykLoader_MissingScanClass(t *testing.T) {
 	_, err := snykLoader{}.Load([]byte(snykSCAJSON), Options{})
 	require.Error(t, err)
 }
+
+func TestSnykLoader_RejectsWrongShape(t *testing.T) {
+	tests := []struct {
+		name    string
+		class   scanpredicate.ScanClass
+		content string
+		wantErr string
+	}{
+		{"sarif as sca", scanpredicate.ScanClassSCA, snykSARIF, "expected snyk test JSON"},
+		{"sca as sast", scanpredicate.ScanClassSAST, snykSCAJSON, "expected snyk code SARIF JSON"},
+		{"null sca", scanpredicate.ScanClassSCA, `null`, "expected snyk test JSON"},
+		{"empty sca object", scanpredicate.ScanClassSCA, `{}`, "expected snyk test JSON"},
+		{"empty sca array", scanpredicate.ScanClassSCA, `[]`, "expected snyk test JSON"},
+		{"null vulnerabilities", scanpredicate.ScanClassSCA, `{"vulnerabilities":null}`, "expected snyk test JSON"},
+		{"empty applications", scanpredicate.ScanClassSCA, `{"applications":[]}`, "expected snyk test JSON"},
+		{"mixed sca reports", scanpredicate.ScanClassSCA, `[` + snykSCAJSON + `,{}]`, "report 1"},
+		{"invalid nested application", scanpredicate.ScanClassSCA, `{"applications":[{"vulnerabilities":[]},{}]}`, "application 1"},
+		{"null sast", scanpredicate.ScanClassSAST, `null`, "expected snyk code SARIF JSON"},
+		{"empty sast object", scanpredicate.ScanClassSAST, `{}`, "expected snyk code SARIF JSON"},
+		{"null runs", scanpredicate.ScanClassSAST, `{"runs":null}`, "expected snyk code SARIF JSON"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pred, err := snykLoader{}.Load([]byte(tt.content), Options{ScanClass: tt.class})
+			require.ErrorContains(t, err, tt.wantErr)
+			assert.Equal(t, scanpredicate.Predicate{}, pred)
+		})
+	}
+}
+
+func TestSnykLoader_EmptyFindings(t *testing.T) {
+	tests := []struct {
+		name    string
+		class   scanpredicate.ScanClass
+		content string
+	}{
+		{"sca object", scanpredicate.ScanClassSCA, `{"vulnerabilities":[]}`},
+		{"sca array", scanpredicate.ScanClassSCA, `[{"vulnerabilities":[]}]`},
+		{"nested sca", scanpredicate.ScanClassSCA, `{"applications":[{"applications":[{"vulnerabilities":[]}]}]}`},
+		{"sast", scanpredicate.ScanClassSAST, `{"runs":[{"tool":{"driver":{"name":"SnykCode"}},"results":[]}]}`},
+		{"sast omitted results", scanpredicate.ScanClassSAST, `{"runs":[{"tool":{"driver":{"name":"SnykCode"}}}]}`},
+		{"sast empty runs", scanpredicate.ScanClassSAST, `{"runs":[]}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pred, err := snykLoader{}.Load([]byte(tt.content), Options{ScanClass: tt.class})
+			require.NoError(t, err)
+			assert.Empty(t, pred.Findings)
+			assert.Zero(t, pred.Summary.Findings)
+			assert.Equal(t, scanpredicate.StatusSuccess, pred.Scan.Status)
+		})
+	}
+}

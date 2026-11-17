@@ -17,6 +17,7 @@ package loaders
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -89,12 +90,17 @@ func loadSnykSCA(content []byte) (scanpredicate.Predicate, error) {
 	if err != nil {
 		return scanpredicate.Predicate{}, err
 	}
+	if len(reports) == 0 {
+		return scanpredicate.Predicate{}, errors.New("expected snyk test JSON with at least one SCA report")
+	}
 
 	input := NormalizedInput{
 		Scanner: NormalizedScanner{Name: snykScannerName, Vendor: snykVendor},
 	}
-	for _, r := range reports {
-		collectSnykVulns(r, &input)
+	for i, r := range reports {
+		if err := collectSnykVulns(r, &input); err != nil {
+			return scanpredicate.Predicate{}, fmt.Errorf("snyk SCA report %d: %w", i, err)
+		}
 	}
 
 	return normalize(scanpredicate.ScanClassSCA, input)
@@ -119,15 +125,22 @@ func decodeSnykSCA(content []byte) ([]snykSCAReport, error) {
 	return []snykSCAReport{report}, nil
 }
 
-// collectSnykVulns appends findings from a report and any nested applications.
-func collectSnykVulns(r snykSCAReport, input *NormalizedInput) {
+// collectSnykVulns validates report shape and appends findings from it and any nested applications.
+func collectSnykVulns(r snykSCAReport, input *NormalizedInput) error {
+	if r.Vulnerabilities == nil && len(r.Applications) == 0 {
+		return errors.New("expected snyk test JSON with a vulnerabilities array or nested applications")
+	}
+
 	ecosystem := r.PackageManager
 	for _, v := range r.Vulnerabilities {
 		input.Findings = append(input.Findings, snykVulnToFinding(v, ecosystem))
 	}
-	for _, app := range r.Applications {
-		collectSnykVulns(app, input)
+	for i, app := range r.Applications {
+		if err := collectSnykVulns(app, input); err != nil {
+			return fmt.Errorf("application %d: %w", i, err)
+		}
 	}
+	return nil
 }
 
 func snykVulnToFinding(v snykVuln, ecosystem string) NormalizedFinding {
@@ -239,6 +252,9 @@ func loadSnykSAST(content []byte) (scanpredicate.Predicate, error) {
 	var report sarifReport
 	if err := json.Unmarshal(bytes.TrimSpace(content), &report); err != nil {
 		return scanpredicate.Predicate{}, fmt.Errorf("failed to parse snyk code SARIF JSON: %w", err)
+	}
+	if report.Runs == nil {
+		return scanpredicate.Predicate{}, errors.New("expected snyk code SARIF JSON with a runs array")
 	}
 
 	input := NormalizedInput{
