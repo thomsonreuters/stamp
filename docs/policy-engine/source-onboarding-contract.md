@@ -78,6 +78,28 @@ silently omitted.
 - Publish the onboarding attestation before triggering the base gate. The
   base gate produces the genesis VSA and does not require a predecessor VSA.
 
+## Re-genesis authorization boundary
+
+`BuildStatement` validates statement content, not permission to re-baseline.
+Setting `reonboarding: true` and an incident reference is not authorization.
+Before calling it for re-genesis, the centrally controlled producer must:
+
+1. Establish that the retroactive review has landed, then re-read the branch's
+   current tip and protection settings.
+2. Verify either a trusted, valid emergency-change attestation bound to that
+   same tip or explicit two-person administrative approval outside repository
+   build/development workflows. Reject wrong-tip emergency evidence; expired
+   emergency evidence requires fresh administrative approval.
+3. Supply the newly observed controls, honestly derived tier, incident
+   reference, and post-review current tip to the statement builder.
+
+The producer must test same-tip and wrong-tip emergency evidence, expiry, and
+missing or insufficient administrative approvals. These checks are not
+implemented by the predicate package. Its statement tests cover serialized
+re-genesis fields, exact supplied-tip binding, degraded and restored controls,
+and rejection of a tier-1 claim without force-push protection. They do not
+prove that a supplied tip is current or that authorization was verified.
+
 ## Ownership and idempotency
 
 - `stamp` owns the reusable typed predicate, schema, validation, and statement
@@ -106,3 +128,7 @@ platform repository ID plus full branch ref, independently of the branch's
 current existence or protection settings. A matching attestation means the
 pair is already onboarded and any new genesis requires re-genesis
 authorization. Do not create a separate branch-to-tier registry.
+
+`pkg/predicates/source-onboarding/v1.RecordLookupKey` can derive a stable index
+key from that identity. The key is only a lookup aid: the producer must still
+validate the matching signed attestation, which remains the source of truth.

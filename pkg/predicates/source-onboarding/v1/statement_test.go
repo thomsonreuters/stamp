@@ -256,6 +256,112 @@ func TestBuildStatement_RejectsTier1WithBroadBypass(t *testing.T) {
 	require.ErrorIs(t, err, ErrTierMismatch)
 }
 
+func TestBuildStatement_RegenesisPreservesObservedBaseline(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*Predicate)
+		tier   string
+	}{
+		{
+			name: "no approvals",
+			mutate: func(p *Predicate) {
+				p.RequiredApprovals = 0
+				p.RestrictsForcePush = false
+			},
+			tier: Untiered,
+		},
+		{
+			name: "force push protection not restored",
+			mutate: func(p *Predicate) {
+				p.RestrictsForcePush = false
+			},
+			tier: Tier2,
+		},
+		{
+			name: "broad bypass despite restored force push protection",
+			mutate: func(p *Predicate) {
+				p.BypassActors = []BypassActor{{
+					ActorType:    "team",
+					ActorID:      "42",
+					BypassModes:  []string{"always"},
+					BypassScopes: []string{"force_push"},
+				}}
+			},
+			tier: Tier2,
+		},
+		{
+			name:   "tier one controls restored",
+			mutate: func(p *Predicate) { p.RequiredApprovals = 3 },
+			tier:   Tier1Protected,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			predicate := tier1Predicate()
+			tt.mutate(&predicate)
+			predicate.Tier = tt.tier
+			reonboarding := true
+			predicate.Reonboarding = &reonboarding
+			predicate.IncidentReference = "INC-1234"
+			postReviewTip := strings.Repeat("b", 40)
+
+			statement, err := BuildStatement(predicate, postReviewTip)
+			require.NoError(t, err)
+			require.NoError(t, statement.Validate())
+			require.Len(t, statement.Subject, 1)
+			assert.Equal(t, predicate.Repository+"@"+predicate.Branch, statement.Subject[0].Name)
+			assert.Equal(t, map[string]string{"gitCommit": postReviewTip}, statement.Subject[0].Digest)
+			assert.Equal(t, predicate, statement.Predicate)
+
+			encoded, err := statement.ToJSON()
+			require.NoError(t, err)
+			var document struct {
+				Predicate Predicate `json:"predicate"`
+			}
+			require.NoError(t, json.Unmarshal(encoded, &document))
+			assert.Equal(t, predicate, document.Predicate)
+			require.NotNil(t, document.Predicate.Reonboarding)
+			assert.True(t, *document.Predicate.Reonboarding)
+			assert.Equal(t, "INC-1234", document.Predicate.IncidentReference)
+			assert.Equal(t, tt.tier, document.Predicate.Tier)
+			assert.Equal(t, ContinuityFromThisRevisionForward, document.Predicate.Continuity)
+		})
+	}
+}
+
+func TestBuildStatement_RejectsInvalidRegenesis(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*Predicate)
+	}{
+		{name: "missing incident", mutate: func(p *Predicate) { p.IncidentReference = "" }},
+		{name: "blank incident", mutate: func(p *Predicate) { p.IncidentReference = " " }},
+		{name: "missing marker", mutate: func(p *Predicate) { p.Reonboarding = nil }},
+		{name: "false marker", mutate: func(p *Predicate) {
+			value := false
+			p.Reonboarding = &value
+		}},
+		{name: "tier one without restored force push protection", mutate: func(p *Predicate) {
+			p.RestrictsForcePush = false
+		}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			predicate := tier1Predicate()
+			reonboarding := true
+			predicate.Reonboarding = &reonboarding
+			predicate.IncidentReference = "INC-1234"
+			tt.mutate(&predicate)
+
+			statement, err := BuildStatement(predicate, strings.Repeat("b", 40))
+			require.Error(t, err)
+			assert.Nil(t, statement)
+		})
+	}
+}
+
 func tier1Predicate() Predicate {
 	return Predicate{
 		Repository:              "owner/repository",
