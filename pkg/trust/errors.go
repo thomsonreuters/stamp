@@ -25,4 +25,6 @@ var (
 	ErrSigningConfigURLConflict = errors.New(
 		"trust: explicit --fulcio-url/--rekor-url/--tsa-url cannot be combined with --use-signing-config or --signing-config; drop the explicit URL flags or set --use-signing-config=false",
 	)
+
+	ErrTUFRootRequiredForCustomURL = errors.New("trust: --tuf-root (or --trusted-root) required when --tuf-url is set to a non-default repository")
 )
