@@ -83,9 +83,19 @@ func TestNewResolver_Dispatch(t *testing.T) {
 			wantKind: "tuf",
 		},
 		{
-			name:     "tuf mode with explicit URL",
-			opts:     Options{TUFURL: "https://tuf.example.com"},
+			name:     "tuf mode with explicit URL and root path",
+			opts:     Options{TUFURL: "https://tuf.example.com", TUFRootPath: "/tmp/root.json"},
 			wantKind: "tuf",
+		},
+		{
+			name:     "tuf mode with explicit URL and root bytes",
+			opts:     Options{TUFURL: "https://tuf.example.com", TUFRootBytes: []byte(`{"signed":{}}`)},
+			wantKind: "tuf",
+		},
+		{
+			name:    "tuf mode with explicit URL but no root returns ErrTUFRootRequiredForCustomURL",
+			opts:    Options{TUFURL: "https://tuf.example.com"},
+			wantErr: ErrTUFRootRequiredForCustomURL,
 		},
 		{
 			name: "explicit mode with fulcio URL but no cert chain returns ErrFulcioCertChainRequired",

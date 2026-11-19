@@ -99,6 +99,18 @@ func TestResolveSigstoreServices_NoSigningConfig(t *testing.T) {
 	assert.Equal(t, uint32(1), urls.rekorVersion)
 }
 
+func TestResolveSigstoreServices_RekorVersionUnsetDefaultsToV2(t *testing.T) {
+	cfg := config.NewMockConfiguration()
+	cfg.On("GetString", flags.FulcioURL).Return("https://fulcio.example.com")
+	cfg.On("GetString", flags.RekorURL).Return("https://rekor.example.com")
+	cfg.On("GetString", flags.TSAURL).Return("")
+	cfg.On("GetInt", flags.RekorVersion).Return(0)
+
+	urls, err := resolveSigstoreServices(cfg, nil)
+	require.NoError(t, err)
+	assert.Equal(t, uint32(2), urls.rekorVersion)
+}
+
 func TestResolveSigstoreServices_WithSigningConfig(t *testing.T) {
 	cfg := config.NewMockConfiguration()
 	cfg.On("GetString", flags.FulcioURL).Return(flags.DefaultFulcioURL)
