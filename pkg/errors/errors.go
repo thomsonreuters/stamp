@@ -156,25 +156,21 @@ func WrapWithContext(err error, component, operation, message string) *BaseError
 // NewValidator creates a validation error collector.
 func NewValidator() *ValidationError {
 	return &ValidationError{
-		BaseError: BaseError{
-			Component: "validation",
-			Message:   "validation failed",
-			ExitCode:  ExitValidationError,
-		},
-		Fields: make(map[string][]string),
+		Component: "validation",
+		Message:   "validation failed",
+		ExitCode:  ExitValidationError,
+		Fields:    make(map[string][]string),
 	}
 }
 
 // NewValidatorFor creates a validation error collector for a specific component.
 func NewValidatorFor(component string) *ValidationError {
 	return &ValidationError{
-		BaseError: BaseError{
-			Component: component,
-			Operation: "validate",
-			Message:   "validation failed",
-			ExitCode:  ExitValidationError,
-		},
-		Fields: make(map[string][]string),
+		Component: component,
+		Operation: "validate",
+		Message:   "validation failed",
+		ExitCode:  ExitValidationError,
+		Fields:    make(map[string][]string),
 	}
 }
 
