@@ -1,0 +1,46 @@
+{
+  "sha": "f6077f498b57ce228dcb89f0410048ceb3691ddb",
+  "node_id": "C_kwDOExamplef6077f49",
+  "commit": {
+    "author": {
+      "name": "dave-example",
+      "email": "dave-example@example.com",
+      "date": "2026-04-10T11:00:00Z"
+    },
+    "committer": {
+      "name": "GitHub",
+      "email": "noreply@github.com",
+      "date": "2026-04-10T11:00:00Z"
+    },
+    "message": "Merge pull request #202 from example-org/feature/202\n\nfix: correct retry backoff",
+    "verification": {
+      "verified": true,
+      "reason": "valid",
+      "signature": null,
+      "payload": null,
+      "verified_at": "2026-04-10T11:00:01Z"
+    }
+  },
+  "url": "https://api.github.com/repos/example-org/example-service/commits/f6077f498b57ce228dcb89f0410048ceb3691ddb",
+  "html_url": "https://github.com/example-org/example-service/commit/f6077f498b57ce228dcb89f0410048ceb3691ddb",
+  "author": {
+    "login": "dave-example",
+    "id": 1004,
+    "node_id": "U_kgDOExample1004",
+    "avatar_url": "https://avatars.example.com/u/1004",
+    "url": "https://api.github.com/users/dave-example",
+    "html_url": "https://github.com/dave-example",
+    "type": "User",
+    "site_admin": false
+  },
+  "parents": [
+    {
+      "sha": "747f6fe0a28d853e8c1a532aab65d65ed751d1b6",
+      "url": "https://api.github.com/repos/example-org/example-service/commits/747f6fe0a28d853e8c1a532aab65d65ed751d1b6"
+    },
+    {
+      "sha": "36894c3dcaf9d234edf8ece827e6233e428a82e3",
+      "url": "https://api.github.com/repos/example-org/example-service/commits/36894c3dcaf9d234edf8ece827e6233e428a82e3"
+    }
+  ]
+}

@@ -1,0 +1,62 @@
+[
+  {
+    "id": 9000013,
+    "node_id": "PRR_kwDOExample9000013",
+    "user": {
+      "login": "bob-example",
+      "id": 1002,
+      "node_id": "U_kgDOExample1002",
+      "avatar_url": "https://avatars.example.com/u/1002",
+      "url": "https://api.github.com/users/bob-example",
+      "html_url": "https://github.com/bob-example",
+      "type": "User",
+      "site_admin": false
+    },
+    "body": "",
+    "state": "APPROVED",
+    "html_url": "https://github.com/example-org/example-service/pull/202#pullrequestreview-9000013",
+    "pull_request_url": "https://api.github.com/repos/example-org/example-service/pulls/202",
+    "submitted_at": "2026-04-10T10:30:00Z",
+    "commit_id": "36894c3dcaf9d234edf8ece827e6233e428a82e3"
+  },
+  {
+    "id": 9000011,
+    "node_id": "PRR_kwDOExample9000011",
+    "user": {
+      "login": "bob-example",
+      "id": 1002,
+      "node_id": "U_kgDOExample1002",
+      "avatar_url": "https://avatars.example.com/u/1002",
+      "url": "https://api.github.com/users/bob-example",
+      "html_url": "https://github.com/bob-example",
+      "type": "User",
+      "site_admin": false
+    },
+    "body": "",
+    "state": "CHANGES_REQUESTED",
+    "html_url": "https://github.com/example-org/example-service/pull/202#pullrequestreview-9000011",
+    "pull_request_url": "https://api.github.com/repos/example-org/example-service/pulls/202",
+    "submitted_at": "2026-04-09T16:00:00Z",
+    "commit_id": "062022501689b3eca7a338506e472eec6405094b"
+  },
+  {
+    "id": 9000012,
+    "node_id": "PRR_kwDOExample9000012",
+    "user": {
+      "login": "dave-example",
+      "id": 1004,
+      "node_id": "U_kgDOExample1004",
+      "avatar_url": "https://avatars.example.com/u/1004",
+      "url": "https://api.github.com/users/dave-example",
+      "html_url": "https://github.com/dave-example",
+      "type": "User",
+      "site_admin": false
+    },
+    "body": "",
+    "state": "APPROVED",
+    "html_url": "https://github.com/example-org/example-service/pull/202#pullrequestreview-9000012",
+    "pull_request_url": "https://api.github.com/repos/example-org/example-service/pulls/202",
+    "submitted_at": "2026-04-10T10:30:00Z",
+    "commit_id": "36894c3dcaf9d234edf8ece827e6233e428a82e3"
+  }
+]

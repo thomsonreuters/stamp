@@ -35,7 +35,6 @@ import (
 	"github.com/thomsonreuters/stamp/pkg/logger"
 	"github.com/thomsonreuters/stamp/pkg/output"
 	"github.com/thomsonreuters/stamp/pkg/signing/container"
-	"github.com/thomsonreuters/stamp/pkg/signing/sigstore"
 )
 
 // trustedRootFixture returns the absolute path to the checked-in
@@ -336,7 +335,7 @@ func TestContainerSignOp_writeBundle_File(t *testing.T) {
 
 	op := NewContainerSignOp(cfg, logger.NewNoop(), output.NewNoop())
 	require.NoError(t, op.writeBundle(context.Background(), &container.Result{
-		Result: sigstore.Result{BundleJSON: []byte(`{"ok":true}`)},
+		BundleJSON: []byte(`{"ok":true}`),
 	}))
 
 	got, err := os.ReadFile(dest)
@@ -361,7 +360,7 @@ func TestContainerSignOp_writeBundle_RefusesToOverwriteWithoutFlag(t *testing.T)
 
 	op := NewContainerSignOp(cfg, logger.NewNoop(), output.NewNoop())
 	err := op.writeBundle(context.Background(), &container.Result{
-		Result: sigstore.Result{BundleJSON: []byte(`{"new":true}`)},
+		BundleJSON: []byte(`{"new":true}`),
 	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "already exists")
@@ -382,7 +381,7 @@ func TestContainerSignOp_writeBundle_OverwritesWithFlag(t *testing.T) {
 
 	op := NewContainerSignOp(cfg, logger.NewNoop(), output.NewNoop())
 	require.NoError(t, op.writeBundle(context.Background(), &container.Result{
-		Result: sigstore.Result{BundleJSON: []byte(`{"new":true}`)},
+		BundleJSON: []byte(`{"new":true}`),
 	}))
 
 	got, err := os.ReadFile(dest)
@@ -406,7 +405,7 @@ func TestContainerSignOp_writeBundle_Stdout(t *testing.T) {
 
 	op := NewContainerSignOp(cfg, logger.NewNoop(), output.NewNoop())
 	require.NoError(t, op.writeBundle(context.Background(), &container.Result{
-		Result: sigstore.Result{BundleJSON: []byte(`{"bundle":true}`)},
+		BundleJSON: []byte(`{"bundle":true}`),
 	}))
 	require.NoError(t, f.Close())
 
@@ -422,7 +421,7 @@ func TestContainerSignOp_writeBundle_FileError(t *testing.T) {
 	})
 
 	op := NewContainerSignOp(cfg, logger.NewNoop(), output.NewNoop())
-	err := op.writeBundle(context.Background(), &container.Result{Result: sigstore.Result{BundleJSON: []byte("x")}})
+	err := op.writeBundle(context.Background(), &container.Result{BundleJSON: []byte("x")})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to open bundle for writing")
 }

@@ -1,0 +1,42 @@
+[
+  {
+    "id": 9000001,
+    "node_id": "PRR_kwDOExample9000001",
+    "user": {
+      "login": "review-bot[bot]",
+      "id": 2001,
+      "node_id": "BOT_kgDOExample2001",
+      "avatar_url": "https://avatars.example.com/u/2001",
+      "url": "https://api.github.com/users/review-bot[bot]",
+      "html_url": "https://github.com/review-bot[bot]",
+      "type": "Bot",
+      "site_admin": false
+    },
+    "body": "",
+    "state": "COMMENTED",
+    "html_url": "https://github.com/example-org/example-service/pull/101#pullrequestreview-9000001",
+    "pull_request_url": "https://api.github.com/repos/example-org/example-service/pulls/101",
+    "submitted_at": "2026-03-02T09:05:00Z",
+    "commit_id": "a7b32434a23c93c1b562a49cb6f28aefd9800c79"
+  },
+  {
+    "id": 9000002,
+    "node_id": "PRR_kwDOExample9000002",
+    "user": {
+      "login": "bob-example",
+      "id": 1002,
+      "node_id": "U_kgDOExample1002",
+      "avatar_url": "https://avatars.example.com/u/1002",
+      "url": "https://api.github.com/users/bob-example",
+      "html_url": "https://github.com/bob-example",
+      "type": "User",
+      "site_admin": false
+    },
+    "body": "",
+    "state": "APPROVED",
+    "html_url": "https://github.com/example-org/example-service/pull/101#pullrequestreview-9000002",
+    "pull_request_url": "https://api.github.com/repos/example-org/example-service/pulls/101",
+    "submitted_at": "2026-03-02T14:00:00Z",
+    "commit_id": "a7b32434a23c93c1b562a49cb6f28aefd9800c79"
+  }
+]
