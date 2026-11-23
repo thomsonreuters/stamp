@@ -13,7 +13,7 @@ how.
 ## Features
 
 - **Multiple attestor types** out of the box: git, file, command, github-workflow,
-  go-builder (SLSA v1 provenance), ec2, jwt, sbom.
+  go-builder (SLSA v1 provenance), ec2, jwt, sbom, pr-review.
 - **Pluggable signing** — local key files or keyless via Sigstore Fulcio,
   with OIDC tokens sourced from GitHub Actions, SPIRE, or a token file.
 - **Workflows** — declare reusable attestation pipelines in YAML and run them

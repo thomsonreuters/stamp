@@ -1,0 +1,42 @@
+{
+  "sha": "3398f011cdab3283b2f280c1c58528641f1bab15",
+  "node_id": "C_kwDOExample3398f011",
+  "commit": {
+    "author": {
+      "name": "alice-example",
+      "email": "alice-example@example.com",
+      "date": "2026-03-02T15:29:00Z"
+    },
+    "committer": {
+      "name": "GitHub",
+      "email": "noreply@github.com",
+      "date": "2026-03-02T15:29:00Z"
+    },
+    "message": "feat: add health endpoint (#101)\n\nAdds a /healthz route.",
+    "verification": {
+      "verified": true,
+      "reason": "valid",
+      "signature": null,
+      "payload": null,
+      "verified_at": "2026-03-02T15:29:30Z"
+    }
+  },
+  "url": "https://api.github.com/repos/example-org/example-service/commits/3398f011cdab3283b2f280c1c58528641f1bab15",
+  "html_url": "https://github.com/example-org/example-service/commit/3398f011cdab3283b2f280c1c58528641f1bab15",
+  "author": {
+    "login": "alice-example",
+    "id": 1001,
+    "node_id": "U_kgDOExample1001",
+    "avatar_url": "https://avatars.example.com/u/1001",
+    "url": "https://api.github.com/users/alice-example",
+    "html_url": "https://github.com/alice-example",
+    "type": "User",
+    "site_admin": false
+  },
+  "parents": [
+    {
+      "sha": "4cb222aa411e5a0e71738893e408507d617f32ce",
+      "url": "https://api.github.com/repos/example-org/example-service/commits/4cb222aa411e5a0e71738893e408507d617f32ce"
+    }
+  ]
+}
