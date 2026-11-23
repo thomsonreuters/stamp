@@ -120,6 +120,59 @@ prove that a supplied tip is current or that authorization was verified.
   status. The lookup must use a durable platform onboarding record independent
   of the live branch ref and protection configuration.
 
+## Signer, publication, and base-gate requirements
+
+`stamp` builds unsigned statements only. The central producer and trust
+configuration must satisfy these requirements; they are not implemented or
+enforced here.
+
+- Use a dedicated onboarding signer with its own trust rule. It must be
+  distinct from the GitHub App source signer and the gate/VSA signer, and its
+  credentials and workflow permissions must be unavailable to repository build
+  or development workflows.
+- Publish the signed `source-onboarding` attestation before triggering the base
+  gate. A gate run with no published onboarding evidence must fail.
+- The base gate produces the genesis VSA with the gate signer. It must not
+  require a predecessor VSA and must not claim the genesis revision was
+  reviewed; the VSA is a forward-only baseline.
+- Integration tests in the producer/infrastructure project should cover signer
+  identity separation, publish-then-gate ordering, missing onboarding evidence,
+  and the genesis VSA's forward-only semantics.
+
+## Operations
+
+These are producer-side responsibilities; `stamp` supplies the predicate,
+statement builder, and lookup key only.
+
+- **Fleet trigger:** the central onboarding workflow runs on a schedule and on
+  demand, processing each repository/protected-branch pair independently.
+- **Retry and failure reporting:** a failed pair is retried on the next run
+  without affecting other pairs. Because a normal rerun must not publish a
+  second genesis for an onboarded pair, publication must be idempotent per
+  `RecordLookupKey`. Persistent failures are reported to the owning team.
+- **Re-genesis:** requires the external authorization described in
+  "Re-genesis authorization boundary".
+- **Signer ownership:** the security/platform team owns the onboarding signer;
+  see "Signer, publication, and base-gate requirements".
+- **Base gate:** invoked by the producer after the attestation is published.
+- **Baseline, not audit:** onboarding records the observed controls from the
+  recorded tip forward. It makes no claim about earlier history
+  (`continuity: from-this-revision-forward`).
+
+## Acceptance criteria coverage
+
+Tests are in `pkg/predicates/source-onboarding/v1`. Criteria marked
+"producer" are not testable in `stamp` and need producer or integration checks.
+
+| 101999 completion check                        | Coverage                                                                                                                    |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Attestation tied to exact tip and controls     | `TestBuildStatement_UsesCurrentBranchTip`, `TestBuildStatement_UsesObservedControlsAndTier`, `TestPredicate_RoundTrip`      |
+| Broad bypass is never tier 1                   | `TestDeriveTier_AllControlCombinations`, `TestBuildStatement_RejectsTier1WithBroadBypass`                                   |
+| Rerun does not duplicate genesis               | `RecordLookupKey` tests cover the stable key; idempotent publication is producer-owned                                      |
+| Re-genesis records controls and incident       | `TestBuildStatement_RegenesisPreservesObservedBaseline`, `TestBuildStatement_RejectsInvalidRegenesis`                       |
+| Signer separation and gate-created genesis VSA | Producer and infrastructure integration tests; requirements are documented above                                            |
+| No claim about pre-onboarding history          | `TestSchema_Contract`, `TestSchema_ValidatesPredicates`, `TestPredicate_ValidateRejectsInvalidValues` (continuity constant) |
+
 ## Onboarding record of truth
 
 The centrally retained, signed `source-onboarding` attestation is the durable
