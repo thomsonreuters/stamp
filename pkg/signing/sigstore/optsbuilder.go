@@ -134,7 +134,7 @@ func resolveSigstoreServices(cfg config.ConfigurationIface, sc *root.SigningConf
 		rekorVersion: uint32(cfg.GetInt(flags.RekorVersion)),
 	}
 	if urls.rekorVersion == 0 {
-		urls.rekorVersion = 1
+		urls.rekorVersion = 2
 	}
 	if sc == nil {
 		return urls, nil

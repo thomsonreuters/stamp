@@ -130,6 +130,9 @@ func NewResolver(opts Options, log logger.Logger) (Resolver, error) {
 		if url == "" {
 			url = DefaultTUFURL
 		}
+		if url != DefaultTUFURL && opts.TUFRootPath == "" && len(opts.TUFRootBytes) == 0 {
+			return nil, ErrTUFRootRequiredForCustomURL
+		}
 		log.Info("trust: using TUF mode",
 			"url", url,
 			"root", opts.TUFRootPath,

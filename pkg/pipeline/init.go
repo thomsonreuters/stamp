@@ -25,4 +25,5 @@ import (
 	_ "github.com/thomsonreuters/stamp/pkg/attestors/jwt"
 	_ "github.com/thomsonreuters/stamp/pkg/attestors/pr-review"
 	_ "github.com/thomsonreuters/stamp/pkg/attestors/sbom"
+	_ "github.com/thomsonreuters/stamp/pkg/attestors/scanresult"
 )

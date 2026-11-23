@@ -10,6 +10,7 @@ require (
 	github.com/invopop/jsonschema v0.14.0
 	github.com/klauspost/compress v1.19.2
 	github.com/lestrrat-go/jwx/v2 v2.1.7
+	github.com/package-url/packageurl-go v0.1.7
 	github.com/sigstore/protobuf-specs v0.5.2
 	github.com/sigstore/sigstore v1.11.1
 	github.com/sigstore/sigstore-go v1.3.0
