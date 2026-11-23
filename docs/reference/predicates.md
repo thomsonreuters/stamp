@@ -25,7 +25,7 @@ The framework's registry maps attestors to predicate URIs, and a single predicat
 | `https://github.com/thomsonreuters/stamp/git/v1`             | `git`                 | Git repository commit and working-tree state           |
 | `https://github.com/thomsonreuters/stamp/github-workflow/v1` | `github-workflow`     | GitHub Actions workflow run context                    |
 | `https://witness.dev/attestations/jwt/v0.1`                  | `jwt`                 | JWT header, claims, and verification result            |
-| `https://thomsonreuters.com/pr-review/v1`                    | `pr-review`           | Review evidence for a merged GitHub pull request       |
+| `https://attestations.thomsonreuters.com/pr-review/v1`       | `pr-review`           | Review evidence for a merged GitHub pull request       |
 | `https://github.com/thomsonreuters/stamp/sbom/v1`            | `sbom`                | Wrapped CycloneDX or SPDX SBOM document                |
 | `https://github.com/thomsonreuters/stamp/scan-result/v1`     | `scan-result`         | Normalized SAST or SCA security scan findings          |
 
@@ -277,7 +277,7 @@ This is a project-specific predicate type. The OIDC claim names follow [RFC 7519
 
 ### URI
 
-`https://thomsonreuters.com/pr-review/v1`
+`https://attestations.thomsonreuters.com/pr-review/v1`
 
 ### Producer(s)
 

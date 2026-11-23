@@ -23,7 +23,7 @@ import (
 )
 
 func TestPredicateURI(t *testing.T) {
-	assert.Equal(t, "https://thomsonreuters.com/pr-review/v1", PredicateURI)
+	assert.Equal(t, "https://attestations.thomsonreuters.com/pr-review/v1", PredicateURI)
 }
 
 func definition(t *testing.T, name string) map[string]any {

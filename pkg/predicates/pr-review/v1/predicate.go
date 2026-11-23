@@ -19,7 +19,7 @@ package v1
 
 const (
 	// PredicateURI is the predicate type URI for pull-request review attestations.
-	PredicateURI = "https://thomsonreuters.com/pr-review/v1"
+	PredicateURI = "https://attestations.thomsonreuters.com/pr-review/v1"
 
 	// ReviewPolicySourceGitHubRuleset identifies GitHub branch rulesets as the review policy source.
 	ReviewPolicySourceGitHubRuleset = "github-ruleset"

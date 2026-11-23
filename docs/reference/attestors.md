@@ -21,7 +21,7 @@ This reference focuses on what `--show-config` does not tell you: which subjects
 | `sbom`            | `https://github.com/thomsonreuters/stamp/sbom/v1`            | A CycloneDX or SPDX SBOM document, with optional schema validation                                                               |
 | `scan-result`     | `https://github.com/thomsonreuters/stamp/scan-result/v1`     | SAST or SCA security scan findings built from normalized input or supported native scanner output                                |
 | `ec2`             | `https://github.com/thomsonreuters/stamp/ec2/v1`             | AWS EC2 runtime environment metadata collected from IMDS                                                                         |
-| `pr-review`       | `https://thomsonreuters.com/pr-review/v1`                    | Review evidence for a merged GitHub pull request, bound to the landed commit                                                     |
+| `pr-review`       | `https://attestations.thomsonreuters.com/pr-review/v1`       | Review evidence for a merged GitHub pull request, bound to the landed commit                                                     |
 
 ---
 
@@ -202,7 +202,7 @@ Records the review evidence for a merged GitHub pull request: the pull request, 
 
 ### Predicate URI
 
-`https://thomsonreuters.com/pr-review/v1`
+`https://attestations.thomsonreuters.com/pr-review/v1`
 
 ### Subjects produced
 

@@ -8,7 +8,7 @@
       }
     }
   ],
-  "predicateType": "https://thomsonreuters.com/pr-review/v1",
+  "predicateType": "https://attestations.thomsonreuters.com/pr-review/v1",
   "predicate": {
     "repository": {
       "id": 600000001,

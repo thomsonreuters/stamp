@@ -34,7 +34,7 @@ func TestMetadata(t *testing.T) {
 	a := &Attestor{logger: logger.NewNoop()}
 	assert.Equal(t, "pr-review", a.ID())
 	assert.Equal(t, prpredicate.PredicateURI, a.PredicateURI())
-	assert.Equal(t, "https://thomsonreuters.com/pr-review/v1", a.PredicateURI())
+	assert.Equal(t, "https://attestations.thomsonreuters.com/pr-review/v1", a.PredicateURI())
 	assert.Equal(t, "Pull Request Review Attestor", a.Name())
 	assert.NotEmpty(t, a.Description())
 	assert.Equal(t, "Pull Request Review Attestation", a.Schema().Title)
