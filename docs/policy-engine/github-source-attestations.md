@@ -111,7 +111,7 @@ One org-wide installation:
 
 1. On merge events: emit `pr-review` + `source-provenance` (two Sigstore bundles, one handler) bound to the landed commit.
 2. On `branch_protection` events and on a periodic sweep: re-emit the control assertion (drift detection, §7.6).
-3. Fleet onboarding runs: enumerate repos/protected branches, read protection config, classify tier, emit `source-onboarding`, trigger the base gate for the genesis VSA. Idempotent. Re-runs onboard new repos and re-baseline drifted ones.
+3. Fleet onboarding runs: enumerate repos/protected branches, read protection config, classify tier, emit `source-onboarding`, trigger the base gate for the genesis VSA. Idempotent. Re-runs onboard new repos and branches with no verified onboarding record. They must not automatically re-baseline an already-onboarded branch; drift is handled under §7.6, and any replacement genesis requires the explicit authorization in §7.4.
 
 The GitHub App's integrity is something the source guarantee depends on: for squash/rebase merges, `c1 ← D` is not re-derivable from the DAG after the fact — the assertion rests on trusting the GitHub App at emission time (for merge commits it is independently checkable via `c1^2`).
 
@@ -283,7 +283,7 @@ Deploy gate (admission webhook → central server):
 
 **Where attestations and VSAs are expected.** Expectation is per-digest, never per-branch enumeration. Each evaluation resolves `Get(digest)`, hops once via `source-provenance`/provenance, and fails closed when the profile's required evidence is absent at that digest (§4.2, D8). No global registry of covered branches exists or is needed:
 
-- **Scope is data-derived, per repo.** The protected-branch set comes from each repo's branch-protection config — read at onboarding, refreshed on `branch_protection` events (§3.5). It differs per repo. Drift re-baselines idempotently. The GitHub App emits and gates on merges into protected branches only.
+- **Scope is data-derived, per repo.** The protected-branch set comes from each repo's branch-protection config — read at onboarding, refreshed on `branch_protection` events (§3.5). It differs per repo. Drift is observed and reported; ordinary fleet reruns do not replace genesis. Re-baselining an existing branch requires explicit re-genesis authorization (§7.4). The GitHub App emits and gates on merges into protected branches only.
 - **Steady-state invariant.** Every protected-branch tip carries the evidence bound to its landed commit — `pr-review` + `source-provenance` and a passing VSA — plus `source-onboarding` at genesis. That landed-commit digest is the sole location any consumer resolves. Nothing is expected on PR heads or unprotected branches.
 - **Unprotected branches are out of scope by construction.** They carry no attestations and no VSA, so a build from an unreviewed tip cannot pass a deploy gate (fail-closed), rather than being unknown. A feature tip enters the chain once — as the `reviewedParentRevisions` edge recorded when it lands — never as its own gated chain, so there is no branch recursion to bound.
 - **Fleet trigger.** The central GitHub App drives the gate on the merge webhook for every landing. The resulting VSA is published under the landed-commit digest (gate signer, §3.4). The next gate therefore always resolves a fresh predecessor VSA.

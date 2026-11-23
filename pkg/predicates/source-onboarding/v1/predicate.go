@@ -145,7 +145,7 @@ func Schema() *jsonschema.Schema {
 	if !ok {
 		panic("source-onboarding schema is missing onboardingTime")
 	}
-	onboardingTimeSchema.Pattern = "Z$"
+	onboardingTimeSchema.Pattern = `(Z|\+00:00)$`
 	reonboardingSchema, ok := schema.Properties.Get("reonboarding")
 	if !ok {
 		panic("source-onboarding schema is missing reonboarding")

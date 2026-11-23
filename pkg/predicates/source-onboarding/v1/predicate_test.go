@@ -101,6 +101,13 @@ func TestPredicate_OptionalReonboardingFields(t *testing.T) {
 	require.NoError(t, predicate.Validate())
 }
 
+func TestPredicate_ValidateAcceptsZeroOffsetTimestamp(t *testing.T) {
+	predicate := validPredicate()
+	require.NoError(t, json.Unmarshal([]byte(`"2026-11-11T20:00:00+00:00"`), &predicate.OnboardingTime))
+
+	require.NoError(t, predicate.Validate())
+}
+
 func TestPredicate_ValidateRejectsInvalidValues(t *testing.T) {
 	falseValue := false
 	tests := []struct {
@@ -178,7 +185,7 @@ func TestSchema_Contract(t *testing.T) {
 	assert.Equal(t, "string", schema.Properties["repository"].Type)
 	assert.Equal(t, "string", schema.Properties["branch"].Type)
 	assert.Equal(t, "date-time", schema.Properties["onboardingTime"].Format)
-	assert.Equal(t, "Z$", schema.Properties["onboardingTime"].Pattern)
+	assert.Equal(t, `(Z|\+00:00)$`, schema.Properties["onboardingTime"].Pattern)
 	assert.Equal(t, "integer", schema.Properties["requiredApprovals"].Type)
 	for _, field := range []string{
 		"requiresCodeownerReview", "linearHistory", "dismissStaleApprovals", "restrictsForcePush",
@@ -220,6 +227,18 @@ func TestSchema_ValidatesPredicates(t *testing.T) {
 	var validInstance any
 	require.NoError(t, json.Unmarshal(validData, &validInstance))
 	require.NoError(t, schema.Validate(validInstance))
+
+	zeroOffsetData, err := json.Marshal(validPredicate())
+	require.NoError(t, err)
+	var zeroOffsetInstance map[string]any
+	require.NoError(t, json.Unmarshal(zeroOffsetData, &zeroOffsetInstance))
+	zeroOffsetInstance["onboardingTime"] = "2026-11-11T20:00:00+00:00"
+	require.NoError(t, schema.Validate(zeroOffsetInstance))
+	zeroOffsetData, err = json.Marshal(zeroOffsetInstance)
+	require.NoError(t, err)
+	var zeroOffsetPredicate Predicate
+	require.NoError(t, json.Unmarshal(zeroOffsetData, &zeroOffsetPredicate))
+	require.NoError(t, zeroOffsetPredicate.Validate())
 
 	reonboarding := true
 	completeData, err := json.Marshal(Predicate{

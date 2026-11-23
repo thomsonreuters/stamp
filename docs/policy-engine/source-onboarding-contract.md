@@ -82,6 +82,12 @@ silently omitted.
 
 `BuildStatement` validates statement content, not permission to re-baseline.
 Setting `reonboarding: true` and an incident reference is not authorization.
+**Open design decision:** the emergency-change attestation may bind to the
+force-pushed incident tip, while re-genesis follows a retroactive PR and binds
+to the post-review tip. The relationship between those two tips is not defined
+here. The producer must not treat a same-tip check as sufficient for this
+flow until the `X`/`Y` authorization semantics are agreed and tested.
+
 Before calling it for re-genesis, the centrally controlled producer must:
 
 1. Establish that the retroactive review has landed, then re-read the branch's
@@ -132,6 +138,11 @@ enforced here.
   or development workflows.
 - Publish the signed `source-onboarding` attestation before triggering the base
   gate. A gate run with no published onboarding evidence must fail.
+- The base gate must verify trusted signer identity and require a matching
+  `source-onboarding/v1` statement for the evaluated repository, full branch
+  ref, and exact `gitCommit` tip. Reject absent, stale, duplicate, or
+  mismatched evidence; mere presence of an onboarding attestation is not
+  sufficient.
 - The base gate produces the genesis VSA with the gate signer. It must not
   require a predecessor VSA and must not claim the genesis revision was
   reviewed; the VSA is a forward-only baseline.
@@ -144,20 +155,56 @@ enforced here.
 These are producer-side responsibilities; `stamp` supplies the predicate,
 statement builder, and lookup key only.
 
-- **Fleet trigger:** the central onboarding workflow runs on a schedule and on
-  demand, processing each repository/protected-branch pair independently.
+- **Fleet trigger:** the centrally controlled producer processes each
+  repository/protected-branch pair independently. Trigger cadence and exact
+  event/on-demand entry points are producer decisions and are not specified by
+  this contract.
 - **Retry and failure reporting:** a failed pair is retried on the next run
   without affecting other pairs. Because a normal rerun must not publish a
   second genesis for an onboarded pair, publication must be idempotent per
   `RecordLookupKey`. Persistent failures are reported to the owning team.
 - **Re-genesis:** requires the external authorization described in
   "Re-genesis authorization boundary".
-- **Signer ownership:** the security/platform team owns the onboarding signer;
-  see "Signer, publication, and base-gate requirements".
+- **Signer ownership:** the source design requires dedicated ISRM-owned
+  signer workflows. The specific operational team and escalation owner must be
+  confirmed by the producer project; they are not assigned here.
 - **Base gate:** invoked by the producer after the attestation is published.
 - **Baseline, not audit:** onboarding records the observed controls from the
   recorded tip forward. It makes no claim about earlier history
   (`continuity: from-this-revision-forward`).
+
+### Event response and idempotent publication
+
+The producer must implement these behaviors; they are not provided by
+`RecordLookupKey`:
+
+1. **Unseen identity:** for a protected repository/branch pair with no verified
+   onboarding record, publish one signed attestation for the observation's tip.
+2. **Published, gate incomplete:** verify and reuse the already-published
+   signed attestation, then retry the base gate for that attestation's exact
+   subject digest. Do not republish a genesis just because gate triggering
+   failed or the live branch tip has since advanced.
+3. **Gate complete:** treat an unchanged rerun as a no-op. Concurrent runs
+   must use conditional creation or equivalent deduplication so only one
+   genesis is published.
+4. **Uncertain publication result:** query the durable record and verify its
+   signed attestation before retrying publication. Never interpret a timeout
+   as proof that publication failed.
+5. **Protection drift:** record/report the observed change and let source
+   policies fail closed when their claimed controls no longer hold. Do not
+   replace an existing genesis automatically.
+6. **Forced push or transient ruleset disable:** retain the event/audit evidence
+   and the missing-VSA failure. Recovery uses the authorized
+   "Re-genesis authorization boundary" path; restoring protection alone does
+   not heal continuity.
+7. **Sweep reconciliation:** compare periodic observations with durable
+   platform audit events so a disable/restore between sweeps is not treated as
+   an unchanged healthy state. Report discrepancies and preserve fail-closed
+   behavior.
+
+The source design does not set detection-latency or alerting deadlines. The
+producer owner must set those operational objectives; this contract does not
+assume a cadence.
 
 ## Acceptance criteria coverage
 
@@ -185,3 +232,9 @@ authorization. Do not create a separate branch-to-tier registry.
 `pkg/predicates/source-onboarding/v1.RecordLookupKey` can derive a stable index
 key from that identity. The key is only a lookup aid: the producer must still
 validate the matching signed attestation, which remains the source of truth.
+Because the predicate records `owner/name` rather than the immutable platform
+ID, the producer's durable record must authenticate and preserve the mapping
+from `(platform repository ID, full branch ref)` to the signed statement
+digest. It must verify that mapping when looking up an existing record; a
+recreated repository with the same name but a different platform ID must not
+inherit the old repository's onboarding state.
